@@ -133,6 +133,15 @@ it-tools    ->  https://github.com/CorentinTh/it-tools/releases
 ```
 The `urls.list` file is just an example and I'd gladly see that people contribute back when they add their preferred URLs to their lists.
 
+## :chart_with_upwards_trend: Prometheus and node_exporter
+Dockcheck can be used together with [Prometheus](https://github.com/prometheus/prometheus) and [node_exporter](https://github.com/prometheus/node_exporter) to export metrics via the file collector, scheduled with cron or likely.
+This is done with the `-c` option, like this:
+```
+dockcheck.sh -c /path/to/exporter/directory
+```
+See the [README_prom.md](./addons/prometheus/README.md) for more detailed information on how to set it up!
+<sub><sup>Contributed by [tdralle](https://github.com/tdralle).</sup></sub>  
+
 ## :bookmark: Labels
 
 Optionally, you can add labels to your containers to control how Podcheck handles them. Currently, these are the usable labels:
