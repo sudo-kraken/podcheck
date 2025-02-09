@@ -275,8 +275,9 @@ for i in $(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}')
   progress_bar "$RegCheckQue" "$ContCount"
   # Looping every item over the list of excluded names and skipping
   for e in "${Excludes[@]}" ; do [[ "$i" == "$e" ]] && continue 2 ; done
+  ImageId=$(docker inspect "$i" --format='{{.Image}}')
   RepoUrl=$(podman inspect "$i" --format='{{.ImageName}}')
-  LocalHash=$(podman image inspect "$RepoUrl" --format '{{.RepoDigests}}')
+  LocalHash=$(podman image inspect "$ImageId" --format '{{.RepoDigests}}')
   # Checking for errors while setting the variable
   if RegHash=$(${t_out} $regbin -v error image digest --list "$RepoUrl" 2>&1) ; then
     if [[ "$LocalHash" == *"$RegHash"* ]] ; then
