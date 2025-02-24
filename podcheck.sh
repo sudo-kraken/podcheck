@@ -217,7 +217,8 @@ if [[ "$VERSION" != "$LatestRelease" ]] && [[ -n "$LatestRelease" ]]; then
 fi
 
 # Set $1 to a variable for name filtering later
-SearchName="$1"
+SearchName="${1:-}"
+
 # Create array of excludes
 IFS=',' read -r -a Excludes <<< "$Exclude"; unset IFS
 
