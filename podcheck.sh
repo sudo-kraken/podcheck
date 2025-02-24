@@ -301,30 +301,23 @@ fi
 ContCount=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | wc -l)
 RegCheckQue=0
 
-# Testing and setting timeout binary
-t_out=$(command -v timeout)
-if [[ $t_out ]]; then
-  t_out=$(realpath "$t_out" 2>/dev/null || readlink -f "$t_out")
-  if [[ $t_out =~ "busybox" ]]; then
-    t_out="timeout ${Timeout}"
-  else
-    t_out="timeout --foreground ${Timeout}"
-  fi
-else
-  t_out=""
-fi
+# Record start time before checking containers
+start_time=$(date +%s)
 
 # Check the image-hash of every running container VS the registry
 for i in $(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}'); do
   ((RegCheckQue+=1))
   progress_bar "$RegCheckQue" "$ContCount"
-  # Looping every item over the list of excluded names and skipping
-  for e in "${Excludes[@]}"; do
+  
+  # Loop over the list of excluded names and skip if a match is found
+  for e in "${Excludes[@]}"; do 
     [[ "$i" == "$e" ]] && continue 2
   done
+  
   ImageId=$(podman inspect "$i" --format='{{.Image}}')
   RepoUrl=$(podman inspect "$i" --format='{{.ImageName}}')
   LocalHash=$(podman image inspect "$ImageId" --format '{{.RepoDigests}}')
+  
   # Checking for errors while setting the variable
   if RegHash=$(${t_out} $regbin -v error image digest --list "$RepoUrl" 2>&1); then
     if [[ "$LocalHash" == *"$RegHash"* ]]; then
@@ -348,9 +341,12 @@ NoUpdates=($(sort <<<"${NoUpdates[*]}"))
 GotUpdates=($(sort <<<"${GotUpdates[*]}"))
 unset IFS
 
-# Run the prometheus exporter function
+# Run the Prometheus exporter function if a collector directory is provided
 if [ -n "$CollectorTextFileDirectory" ]; then
-  source "$ScriptWorkDir/addons/prometheus/prometheus_collector.sh" && prometheus_exporter "${#NoUpdates[@]}" "${#GotUpdates[@]}" "${#GotError[@]}"
+  end_time=$(date +%s)
+  check_duration=$(( end_time - start_time ))
+  source "$ScriptWorkDir/addons/prometheus/prometheus_collector.sh" && \
+    prometheus_exporter "${#NoUpdates[@]}" "${#GotUpdates[@]}" "${#GotErrors[@]}" "$ContCount" "$check_duration"
 fi
 
 # Define how many updates are available
