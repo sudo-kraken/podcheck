@@ -55,9 +55,9 @@ set -euo pipefail
 while getopts "aynpfrhlisvmc:e:d:t:" options; do
   case "${options}" in
     a|y) AutoUp="yes" ;;
-    c)   
+    c)
       CollectorTextFileDirectory="${OPTARG}"
-      if ! [[ -d $CollectorTextFileDirectory ]] ; then
+      if ! [[ -d $CollectorTextFileDirectory ]]; then
         printf "The directory (%s) does not exist.\n" "${CollectorTextFileDirectory}"
         exit 2
       fi
@@ -67,19 +67,19 @@ while getopts "aynpfrhlisvmc:e:d:t:" options; do
     p)   AutoPrune="yes" ;;
     l)   OnlyLabel=true ;;
     f)   ForceRestartPods=true ;;
-    i)   [ -s "$ScriptWorkDir/notify.sh" ] && { source "$ScriptWorkDir/notify.sh" ; Notify="yes" ; } ;;
-    e)   Exclude=${OPTARG} ;;
+    i)   [ -s "$ScriptWorkDir/notify.sh" ] && { source "$ScriptWorkDir/notify.sh"; Notify="yes"; } ;;
+    e)   Exclude="${OPTARG}" ;;
     m)   declare c_{red,green,yellow,blue,teal,reset}="" ;;
     s)   Stopped="-a" ;;
     t)   Timeout="${OPTARG}" ;;
-    v)   printf "%s\n" "$VERSION" ; exit 0 ;;
-    d)   DaysOld=${OPTARG}
-         if ! [[ $DaysOld =~ ^[0-9]+$ ]] ; then
+    v)   printf "%s\n" "$VERSION"; exit 0 ;;
+    d)   DaysOld="${OPTARG}"
+         if ! [[ $DaysOld =~ ^[0-9]+$ ]]; then
            printf "Days -d argument given (%s) is not a number.\n" "${DaysOld}"
            exit 2
          fi
          ;;
-    h|*) Help ; exit 2 ;;
+    h|*) Help; exit 2 ;;
   esac
 done
 shift "$((OPTIND-1))"
@@ -105,16 +105,16 @@ self_update_curl() {
 }
 
 self_update() {
-  cd "$ScriptWorkDir" || { printf "Path error, skipping update.\n" ; return ; }
+  cd "$ScriptWorkDir" || { printf "Path error, skipping update.\n"; return; }
   if command -v git &>/dev/null && [[ "$(git ls-remote --get-url 2>/dev/null)" =~ .*"sudo-kraken/podcheck".* ]]; then
     printf "\n%s\n" "Pulling the latest version."
-    git pull --force || { printf "Git error, manually pull/clone.\n" ; return ; }
+    git pull --force || { printf "Git error, manually pull/clone.\n"; return; }
     printf "\n%s\n" "--- starting over with the updated version ---"
-    cd - || { printf "Path error.\n" ; return ; }
+    cd - || { printf "Path error.\n"; return; }
     exec "$ScriptPath" "${ScriptArgs[@]}"
     exit 1
   else
-    cd - || { printf "Path error.\n" ; return ; }
+    cd - || { printf "Path error.\n"; return; }
     self_update_curl
   fi
 }
@@ -171,6 +171,19 @@ progress_bar() {
   fi
 }
 
+# Testing and setting timeout binary
+t_out=$(command -v timeout 2>/dev/null || echo "")
+if [[ -n "$t_out" ]]; then
+  t_out=$(realpath "$t_out" 2>/dev/null || readlink -f "$t_out")
+  if [[ "$t_out" =~ "busybox" ]]; then
+    t_out="timeout ${Timeout}"
+  else
+    t_out="timeout --foreground ${Timeout}"
+  fi
+else
+  t_out=""
+fi
+
 # Static binary downloader for dependencies
 binary_downloader() {
   BinaryName="$1"
@@ -178,7 +191,7 @@ binary_downloader() {
   case "$(uname --machine)" in
     x86_64|amd64) architecture="amd64" ;;
     arm64|aarch64) architecture="arm64" ;;
-    *) printf "\n%bArchitecture not supported, exiting.%b\n" "$c_red" "$c_reset" ; exit 1 ;;
+    *) printf "\n%bArchitecture not supported, exiting.%b\n" "$c_red" "$c_reset"; exit 1 ;;
   esac
   GetUrl="${BinaryUrl/TEMP/"$architecture"}"
   if command -v curl &>/dev/null; then
@@ -218,9 +231,8 @@ fi
 
 # Set $1 to a variable for name filtering later
 SearchName="${1:-}"
-
 # Create array of excludes
-IFS=',' read -r -a Excludes <<< "$Exclude"; unset IFS
+IFS=',' read -r -a Excludes <<< "${Exclude:-}"; unset IFS
 
 # Dependency check for jq in PATH or directory
 if command -v jq &>/dev/null; then
@@ -452,7 +464,7 @@ if [ -n "$GotUpdates" ]; then
         continue
       fi
       # cd to the compose-file directory to account for people who use relative volumes
-      cd "$ContPath" || { echo "Path error - skipping $i" ; continue ; }
+      cd "$ContPath" || { echo "Path error - skipping $i"; continue; }
       # Reformatting path + multi compose
       if [[ $ContConfigFile = /* ]]; then
         CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s " "$conf"; done)
@@ -461,7 +473,7 @@ if [ -n "$GotUpdates" ]; then
       fi
       printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
       # Checking if Label Only option is set, and if container got the label
-      [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != "true" ]] && { echo "No update label, skipping." ; continue ; } }
+      [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != "true" ]] && { echo "No update label, skipping."; continue; } }
       podman pull "$ContImage"
       # Check if the container got an environment file set and reformat it
       if [ -n "$ContEnv" ]; then
