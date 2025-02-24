@@ -14,6 +14,18 @@
 
 ___
 ## :bell: Changelog
+- **v0.6.0**:
+    - **Grafana & Prometheus Integration:**  
+      - Added a detailed Prometheus metrics exporter that now reports not only the number of containers with updates, no-updates, and errors, but also the total number of containers checked, the duration of the update check, and the epoch timestamp of the last check.
+      - Enhanced documentation with instructions on integrating these metrics with Grafana for visual monitoring.
+    - **Improved Error Handling & Code Refactoring:**  
+      - Introduced `set -euo pipefail` and local variable scoping within functions to improve reliability and prevent unexpected behaviour.
+      - Standardised container name handling and refined the Quadlet detection logic.
+    - **Self-Update Enhancements:**  
+      - Updated the self-update mechanism to support both Git-based and HTTP-based updates, with an automatic restart that preserves the original arguments.
+    - **Miscellaneous Improvements:**  
+      - Enhanced dependency installer to support both package manager and static binary installations for `jq` and `regctl`.
+      - General code refactoring across the project for better readability and maintainability.
 - **v0.5.7**: Rewrite of dependency downloads, now jq can be installed with package manager or static binary.
 - **v0.5.6**: Directly checking for systemd units matching container names.
     - Improved Quadlet detection by checking for systemd units named after the container.

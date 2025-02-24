@@ -223,7 +223,7 @@
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by(instance) (dockcheck_images_analyzed)",
+          "expr": "sum by(instance) (podcheck_images_analyzed)",
           "format": "table",
           "fullMetaSearch": false,
           "hide": false,
@@ -232,7 +232,7 @@
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_analyzed",
+          "refId": "podcheck_images_analyzed",
           "useBackend": false,
           "datasource": {
             "type": "prometheus",
@@ -247,7 +247,7 @@
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by(instance) (dockcheck_images_outdated)",
+          "expr": "sum by(instance) (podcheck_images_outdated)",
           "format": "table",
           "fullMetaSearch": false,
           "hide": false,
@@ -255,7 +255,7 @@
           "instant": true,
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_outdated",
+          "refId": "podcheck_images_outdated",
           "useBackend": false
         },
         {
@@ -266,7 +266,7 @@
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by(instance) (dockcheck_images_latest)",
+          "expr": "sum by(instance) (podcheck_images_latest)",
           "format": "table",
           "fullMetaSearch": false,
           "hide": false,
@@ -274,7 +274,7 @@
           "instant": true,
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_latest",
+          "refId": "podcheck_images_latest",
           "useBackend": false
         },
         {
@@ -284,13 +284,13 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum by(instance) (dockcheck_images_error)",
+          "expr": "sum by(instance) (podcheck_images_error)",
           "format": "table",
           "hide": false,
           "instant": true,
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_error"
+          "refId": "podcheck_images_error"
         },
         {
           "datasource": {
@@ -299,13 +299,13 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "dockcheck_images_analyze_timestamp_seconds * 1000",
+          "expr": "podcheck_images_analyze_timestamp_seconds * 1000",
           "format": "table",
           "hide": false,
           "instant": true,
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_analyze_timestamp_seconds"
+          "refId": "podcheck_images_analyze_timestamp_seconds"
         },
         {
           "datasource": {
@@ -314,16 +314,16 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "time() - dockcheck_images_analyze_timestamp_seconds",
+          "expr": "time() - podcheck_images_analyze_timestamp_seconds",
           "format": "table",
           "hide": false,
           "instant": true,
           "legendFormat": "{{instance}}",
           "range": false,
-          "refId": "dockcheck_images_last_analyze"
+          "refId": "podcheck_images_last_analyze"
         }
       ],
-      "title": "Dockcheck Status",
+      "title": "podcheck Status",
       "transformations": [
         {
           "id": "merge",
@@ -340,23 +340,23 @@
             "includeByName": {},
             "indexByName": {
               "Time": 0,
-              "Value #dockcheck_images_analyze_timestamp_seconds": 2,
-              "Value #dockcheck_images_analyzed": 4,
-              "Value #dockcheck_images_error": 7,
-              "Value #dockcheck_images_last_analyze": 3,
-              "Value #dockcheck_images_latest": 5,
-              "Value #dockcheck_images_outdated": 6,
+              "Value #podcheck_images_analyze_timestamp_seconds": 2,
+              "Value #podcheck_images_analyzed": 4,
+              "Value #podcheck_images_error": 7,
+              "Value #podcheck_images_last_analyze": 3,
+              "Value #podcheck_images_latest": 5,
+              "Value #podcheck_images_outdated": 6,
               "instance": 1,
               "job": 8
             },
             "renameByName": {
               "Value #A": "analyze_timestamp",
-              "Value #dockcheck_images_analyze_timestamp_seconds": "last_analyze_timestamp",
-              "Value #dockcheck_images_analyzed": "images_analyzed",
-              "Value #dockcheck_images_error": "images_error",
-              "Value #dockcheck_images_last_analyze": "last_analyze_since",
-              "Value #dockcheck_images_latest": "images_latest",
-              "Value #dockcheck_images_outdated": "images_outdated"
+              "Value #podcheck_images_analyze_timestamp_seconds": "last_analyze_timestamp",
+              "Value #podcheck_images_analyzed": "images_analyzed",
+              "Value #podcheck_images_error": "images_error",
+              "Value #podcheck_images_last_analyze": "last_analyze_since",
+              "Value #podcheck_images_latest": "images_latest",
+              "Value #podcheck_images_outdated": "images_outdated"
             }
           }
         }
@@ -375,7 +375,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Dockcheck Status",
+  "title": "podcheck Status",
   "uid": "feb4pv3kv1hxca",
   "version": 17,
   "weekStart": ""
