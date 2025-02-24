@@ -400,17 +400,45 @@ if [ -n "$GotUpdates" ]; then
       
       # Checking if compose-values are empty - possibly started with podman run or managed by Quadlet
       if [ -z "$ContPath" ]; then
-        # Check if a systemd unit exists with the same name as the container
+        # Try exact match first:
         if systemctl --user status "$i.service" &>/dev/null; then
-          echo "Detected Quadlet-managed container: $i (unit: $i.service)"
-          podman pull "$ContImage"
-          systemctl --user restart "$i.service"
-          echo "Quadlet container $i updated and restarted."
+          unit="$i.service"
         elif [ "$(id -u)" -eq 0 ] && systemctl status "$i.service" &>/dev/null; then
-          echo "Detected Quadlet-managed container: $i (unit: $i.service)"
+          unit="$i.service"
+        else
+          # Build a flexible regex pattern from the container name,
+          # allowing underscores or hyphens interchangeably.
+          pattern="^$(echo "$i" | sed 's/_/[_-]/g')\.service$"
+          # List all user service units that match the pattern.
+          candidates=$(systemctl --user list-units --type=service --no-legend | awk '{print $1}' | grep -iE "$pattern")
+          if [ "$(echo "$candidates" | wc -l)" -eq 1 ]; then
+            unit="$candidates"
+          elif [ "$(echo "$candidates" | wc -l)" -gt 1 ]; then
+            # If multiple candidates are found, attempt to choose the one that exactly matches (ignoring case).
+            for cand in $candidates; do
+              if [[ "${cand,,}" == "${i,,}.service" ]]; then
+                unit="$cand"
+                break
+              fi
+            done
+            # If no exact match is found, default to the first candidate.
+            if [ -z "${unit:-}" ]; then
+              unit=$(echo "$candidates" | head -n 1)
+            fi
+          fi
+        fi
+
+        if [ -n "${unit:-}" ]; then
+          echo "Detected Quadlet-managed container: $i (matched unit: $unit)"
           podman pull "$ContImage"
-          systemctl restart "$i.service"
-          echo "Quadlet container $i updated and restarted."
+          # Attempt to restart in user scope first, then system scope if needed.
+          if systemctl --user restart "$unit" &>/dev/null; then
+            echo "Quadlet container $i updated and restarted (user scope)."
+          elif [ "$(id -u)" -eq 0 ] && systemctl restart "$unit" &>/dev/null; then
+            echo "Quadlet container $i updated and restarted (system scope)."
+          else
+            echo "Failed to restart unit $unit for container $i."
+          fi
         else
           if [ "$DRunUp" == "yes" ]; then
             podman pull "$ContImage"
@@ -419,6 +447,7 @@ if [ -n "$GotUpdates" ]; then
             printf "\n%b%s%b has no compose labels or associated systemd unit; %bskipping%b\n\n" "$c_yellow" "$i" "$c_reset" "$c_yellow" "$c_reset"
           fi
         fi
+
         continue
       fi
       # cd to the compose-file directory to account for people who use relative volumes
