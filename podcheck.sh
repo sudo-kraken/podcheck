@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 VERSION="v0.6.0"
-# ChangeNotes: Rewrite of dependency installer. jq can now be installed via package manager or static binary.
 Github="https://github.com/sudo-kraken/podcheck"
-RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh"
+RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/upstream_patches/podcheck.sh"
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
@@ -45,21 +44,27 @@ c_blue="\033[0;34m"
 c_teal="\033[0;36m"
 c_reset="\033[0m"
 
-Timeout=10
-Stopped=""
-
-# Default AutoUp, AutoPrune, and SearchName.
+# Initialise variables first
 AutoUp="no"
-AutoPrune=""  # Initialize AutoPrune to an empty string.
-declare SearchName=""
-SearchName="${1:-}"
+AutoPrune=""
+Stopped=""
+Timeout=10
+NoUpdateMode=false
+Excludes=()
+GotUpdates=()
+NoUpdates=()
+GotErrors=()
+NotifyUpdates=()
+SelectedUpdates=()
+OnlyLabel=false
+ForceRestartPods=false
 
 # regbin will be set later.
 regbin=""
 
 set -euo pipefail
 
-while getopts "aynpfrhlisvmc:e:d:tnv" options; do
+while getopts "aynpfrhlisvmc:e:d:t:v" options; do
   case "${options}" in
     a|y) AutoUp="yes" ;;
     c)
@@ -69,13 +74,15 @@ while getopts "aynpfrhlisvmc:e:d:tnv" options; do
         exit 2
       fi
       ;;
-    n)   AutoUp="no" ;;
+    n)   NoUpdateMode=true ;;
     r)   DRunUp="yes" ;;
     p)   AutoPrune="yes" ;;
     l)   OnlyLabel=true ;;
     f)   ForceRestartPods=true ;;
     i)   [ -s "$ScriptWorkDir/notify.sh" ] && { source "$ScriptWorkDir/notify.sh"; Notify="yes"; } ;;
-    e)   Exclude="${OPTARG}" ;;
+    e)   Exclude="${OPTARG}"
+          IFS=',' read -ra Excludes <<< "$Exclude"
+          ;;
     m)   declare c_{red,green,yellow,blue,teal,reset}="" ;;
     s)   Stopped="-a" ;;
     t)   Timeout="${OPTARG}" ;;
@@ -90,6 +97,9 @@ while getopts "aynpfrhlisvmc:e:d:tnv" options; do
   esac
 done
 shift "$((OPTIND-1))"
+
+# Now get the search name from the first remaining positional parameter
+SearchName="${1:-}"
 
 # Self-update functions
 self_update_curl() {
@@ -338,20 +348,35 @@ process_container() {
       if [[ "$LocalHash" == *"$RegHash"* ]]; then
         NoUpdates+=("$container")
       else
+        # Create a separate array for notifications
+        NotifyUpdates+=("$container")
+        # Add to GotUpdates for update logic
+        GotUpdates+=("$container")
+        
+        # If it's too recent based on age check, move it to NoUpdates for display 
+        # but keep it in NotifyUpdates
         if [[ -n "${DaysOld:-}" ]] && ! datecheck; then
           NoUpdates+=("+$container ${ImageAge}d")
-        else
-          GotUpdates+=("$container")
+          # Remove from GotUpdates for update logic
+          for i in "${!GotUpdates[@]}"; do
+            if [[ "${GotUpdates[i]}" = "$container" ]]; then
+              unset 'GotUpdates[i]'
+              break
+            fi
+          done
+          # Re-index array after removal
+          GotUpdates=("${GotUpdates[@]}")
         fi
       fi
     else
       GotErrors+=("$container - No digest returned")
     fi
   else
-    GotErrors+=("$container - No digest returned")
+    GotErrors+=("$container - Error checking registry") 
   fi
 }
 
+# Main loop to process all containers
 for container in $(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}'); do
   process_container "$container" || true
 done
@@ -379,13 +404,20 @@ fi
 
 if [[ -n "${GotUpdates[*]}" ]]; then
   UpdCount="${#GotUpdates[@]}"
-  if [[ -z "${AutoUp:-}" || "$AutoUp" == "no" ]]; then
+  
+  # Send notification if -i flag was used, regardless of other options
+  [[ "${Notify:-}" == "yes" && -n "${NotifyUpdates[*]}" ]] && send_notification "${NotifyUpdates[@]}"
+  
+  if [[ "$NoUpdateMode" == true ]]; then
+    printf "\n%bNo updates will be performed due to -n flag.%b\n" "$c_blue" "$c_reset"
+  elif [[ "$AutoUp" == "yes" ]]; then
+    SelectedUpdates=( "${GotUpdates[@]}" )
+  else
     printf "\n%bChoose what containers to update:%b\n" "$c_teal" "$c_reset"
     options
     choosecontainers
-  else
-    SelectedUpdates=( "${GotUpdates[@]}" )
   fi
+
   if [ "${#SelectedUpdates[@]}" -gt 0 ]; then
     NumberofUpdates="${#SelectedUpdates[@]}"
     CurrentQue=0
@@ -480,6 +512,44 @@ if [[ -n "${GotUpdates[*]}" ]]; then
   fi
 else
   printf "\nNo updates available, exiting.\n"
+fi
+
+# Export metrics if collector directory was specified
+if [[ -n "${CollectorTextFileDirectory:-}" ]]; then
+  # Calculate check duration
+  end_time=$(date +%s)
+  check_duration=$((end_time - start_time))
+  
+  # Source the prometheus collector script if it exists
+  if [[ -f "$ScriptWorkDir/addons/prometheus/prometheus_collector.sh" ]]; then
+    source "$ScriptWorkDir/addons/prometheus/prometheus_collector.sh"
+    # Call the prometheus_exporter with appropriate metrics
+    prometheus_exporter "${#NoUpdates[@]}" "${#GotUpdates[@]}" "${#GotErrors[@]}" "$ContCount" "$check_duration"
+    printf "\n%bPrometheus metrics exported to: %s/podcheck.prom%b\n" "$c_teal" "$CollectorTextFileDirectory" "$c_reset"
+  else
+    # Fallback if the collector script isn't found
+    cat > "$CollectorTextFileDirectory/podcheck.prom" <<EOF
+# HELP podcheck_no_updates Number of containers already on latest image
+# TYPE podcheck_no_updates gauge
+podcheck_no_updates ${#NoUpdates[@]}
+# HELP podcheck_updates Number of containers with updates available
+# TYPE podcheck_updates gauge
+podcheck_updates ${#GotUpdates[@]}
+# HELP podcheck_errors Number of containers with errors during update check
+# TYPE podcheck_errors gauge
+podcheck_errors ${#GotErrors[@]}
+# HELP podcheck_total Total number of containers checked
+# TYPE podcheck_total gauge
+podcheck_total ${ContCount}
+# HELP podcheck_check_duration Duration in seconds for the update check
+# TYPE podcheck_check_duration gauge
+podcheck_check_duration ${check_duration}
+# HELP podcheck_last_check_timestamp Epoch timestamp of the last update check
+# TYPE podcheck_last_check_timestamp gauge
+podcheck_last_check_timestamp $(date +%s)
+EOF
+    printf "\n%bPrometheus metrics exported to: %s/podcheck.prom%b\n" "$c_teal" "$CollectorTextFileDirectory" "$c_reset"
+  fi
 fi
 
 exit 0
