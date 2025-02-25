@@ -13,7 +13,6 @@ ScriptWorkDir="$(dirname "$ScriptPath")"
 LatestRelease="$(curl -s -r 0-100 "$RawUrl" | sed -n "/VERSION/s/VERSION=//p" | tr -d '"')"
 LatestChanges="$(curl -s -r 0-200 "$RawUrl" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
 
-# Help Function
 Help() {
   echo "Syntax:     podcheck.sh [OPTION] [part of name to filter]"
   echo "Example:    podcheck.sh -y -d 10 -e nextcloud,heimdall"
@@ -27,7 +26,7 @@ Help() {
   echo "-h     Print this Help."
   echo "-i     Inform - send a preconfigured notification."
   echo "-l     Only update if label is set. See readme."
-  echo "-m     Monochrome mode, no printf color codes."
+  echo "-m     Monochrome mode, no printf colour codes."
   echo "-n     No updates; only checking availability."
   echo "-p     Auto-prune dangling images after update."
   echo "-r     Allow updating images for podman run; won't update the container."
@@ -38,7 +37,7 @@ Help() {
   echo "Project source: $Github"
 }
 
-# Colors
+# Colours
 c_red="\033[0;31m"
 c_green="\033[0;32m"
 c_yellow="\033[0;33m"
@@ -49,10 +48,18 @@ c_reset="\033[0m"
 Timeout=10
 Stopped=""
 
-# Enhanced error handling
+# Default AutoUp, AutoPrune, and SearchName.
+AutoUp="no"
+AutoPrune=""  # Initialize AutoPrune to an empty string.
+declare SearchName=""
+SearchName="${1:-}"
+
+# regbin will be set later.
+regbin=""
+
 set -euo pipefail
 
-while getopts "aynpfrhlisvmc:e:d:t:" options; do
+while getopts "aynpfrhlisvmc:e:d:tnv" options; do
   case "${options}" in
     a|y) AutoUp="yes" ;;
     c)
@@ -72,13 +79,13 @@ while getopts "aynpfrhlisvmc:e:d:t:" options; do
     m)   declare c_{red,green,yellow,blue,teal,reset}="" ;;
     s)   Stopped="-a" ;;
     t)   Timeout="${OPTARG}" ;;
-    v)   printf "%s\n" "$VERSION"; exit 0 ;;
     d)   DaysOld="${OPTARG}"
          if ! [[ $DaysOld =~ ^[0-9]+$ ]]; then
            printf "Days -d argument given (%s) is not a number.\n" "${DaysOld}"
            exit 2
          fi
          ;;
+    v)   printf "%s\n" "$VERSION"; exit 0 ;;
     h|*) Help; exit 2 ;;
   esac
 done
@@ -119,7 +126,6 @@ self_update() {
   fi
 }
 
-# Choose from list function
 choosecontainers() {
   while [[ -z "${ChoiceClean:-}" ]]; do
     read -r -p "Enter number(s) separated by comma, [a] for all - [q] to quit: " Choice
@@ -147,7 +153,12 @@ choosecontainers() {
 }
 
 datecheck() {
-  ImageDate=$($regbin -v error image inspect "$RepoUrl" --format='{{.Created}}' | cut -d" " -f1)
+  if [[ -z "${DaysOld:-}" ]]; then
+    return 0
+  fi
+  if ! ImageDate=$($regbin -v error image inspect "$RepoUrl" --format='{{.Created}}' 2>/dev/null | cut -d" " -f1); then
+     return 1
+  fi
   ImageAge=$(( ( $(date +%s) - $(date -d "$ImageDate" +%s) ) / 86400 ))
   if [ "$ImageAge" -gt "$DaysOld" ]; then
     return 0
@@ -171,7 +182,6 @@ progress_bar() {
   fi
 }
 
-# Testing and setting timeout binary
 t_out=$(command -v timeout 2>/dev/null || echo "")
 if [[ -n "$t_out" ]]; then
   t_out=$(realpath "$t_out" 2>/dev/null || readlink -f "$t_out")
@@ -184,7 +194,6 @@ else
   t_out=""
 fi
 
-# Static binary downloader for dependencies
 binary_downloader() {
   BinaryName="$1"
   BinaryUrl="$2"
@@ -220,21 +229,7 @@ distro_checker() {
   fi
 }
 
-# Version check & initiate self update
-if [[ "$VERSION" != "$LatestRelease" ]] && [[ -n "$LatestRelease" ]]; then
-  printf "New version available! %b%s%b ⇒ %b%s%b \n Change Notes: %s \n" "$c_yellow" "$VERSION" "$c_reset" "$c_green" "$LatestRelease" "$c_reset" "$LatestChanges"
-  if [[ -z "${AutoUp:-}" ]]; then
-    read -r -p "Would you like to update? y/[n]: " SelfUpdate
-    [[ "$SelfUpdate" =~ [yY] ]] && self_update
-  fi
-fi
-
-# Set $1 to a variable for name filtering later
-SearchName="${1:-}"
-# Create array of excludes
-IFS=',' read -r -a Excludes <<< "${Exclude:-}"; unset IFS
-
-# Dependency check for jq in PATH or directory
+# Dependency check for jq
 if command -v jq &>/dev/null; then
   jqbin="jq"
 elif [[ -f "$ScriptWorkDir/jq" ]]; then
@@ -260,10 +255,9 @@ else
   fi
 fi
 
-# Final check if binary is correct
 $jqbin --version &>/dev/null || { printf "%s\n" "jq is not working - try to remove it and re-download it, exiting."; exit 1; }
 
-# Dependency check for regctl in PATH or directory
+# Dependency check for regctl
 if command -v regctl &>/dev/null; then
   regbin="regctl"
 elif [[ -f "$ScriptWorkDir/regctl" ]]; then
@@ -272,14 +266,18 @@ else
   read -r -p "Required dependency 'regctl' missing, do you want it downloaded? y/[n] " GetRegctl
   if [[ "$GetRegctl" =~ [yY] ]]; then
     binary_downloader "regctl" "https://github.com/regclient/regclient/releases/latest/download/regctl-linux-TEMP"
-    [[ -f "$ScriptWorkDir/regctl" ]] && regbin="$ScriptWorkDir/regctl"
+    if [[ -f "$ScriptWorkDir/regctl" ]]; then
+      regbin="$ScriptWorkDir/regctl"
+    else
+      printf "\n%bFailed to download regctl, exiting.%b\n" "$c_red" "$c_reset"
+      exit 1
+    fi
   else
     printf "\n%bDependency missing, exiting.%b\n" "$c_red" "$c_reset"
     exit 1
   fi
 fi
 
-# Final check if binary is correct
 $regbin version &>/dev/null || { printf "%s\n" "regctl is not working - try to remove it and re-download it, exiting."; exit 1; }
 
 # Check podman compose binary
@@ -294,7 +292,6 @@ else
   exit 1
 fi
 
-# Numbered List function
 options() {
   num=1
   for i in "${GotUpdates[@]}"; do
@@ -303,69 +300,69 @@ options() {
   done
 }
 
-# Listing typed exclusions
 if [[ -n "${Excludes[*]}" ]]; then
   printf "\n%bExcluding these names:%b\n" "$c_blue" "$c_reset"
   printf "%s\n" "${Excludes[@]}"
   printf "\n"
 fi
 
-# Variables for progress_bar function
 ContCount=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | wc -l)
 RegCheckQue=0
-
-# Record start time before checking containers
 start_time=$(date +%s)
 
-# Check the image-hash of every running container VS the registry
-for i in $(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}'); do
-  ((RegCheckQue+=1))
+process_container() {
+  local container="$1"
+  ((RegCheckQue++))
   progress_bar "$RegCheckQue" "$ContCount"
+  >&2 echo "Processing container: $container"
   
-  # Loop over the list of excluded names and skip if a match is found
   for e in "${Excludes[@]}"; do 
-    [[ "$i" == "$e" ]] && continue 2
+    if [[ "$container" == "$e" ]]; then
+      return 0
+    fi
   done
   
-  ImageId=$(podman inspect "$i" --format='{{.Image}}')
-  RepoUrl=$(podman inspect "$i" --format='{{.ImageName}}')
-  LocalHash=$(podman image inspect "$ImageId" --format '{{.RepoDigests}}')
+  local ImageId RepoUrl LocalHash RegHash
+  if ! ImageId=$(podman inspect "$container" --format='{{.Image}}'); then
+    return 0
+  fi
+  if ! RepoUrl=$(podman inspect "$container" --format='{{.ImageName}}'); then
+    return 0
+  fi
+  if ! LocalHash=$(podman image inspect "$ImageId" --format '{{.RepoDigests}}'); then
+    return 0
+  fi
   
-  # Checking for errors while setting the variable
-  if RegHash=$(${t_out} $regbin -v error image digest --list "$RepoUrl" 2>&1); then
-    if [[ "$LocalHash" == *"$RegHash"* ]]; then
-      NoUpdates+=("$i")
-    else
-      if [[ -n "$DaysOld" ]] && ! datecheck; then
-        NoUpdates+=("+$i ${ImageAge}d")
+  if RegHash=$(${t_out} $regbin -v error image digest --list "$RepoUrl" 2>/dev/null | xargs); then
+    if [[ -n "$RegHash" ]]; then
+      if [[ "$LocalHash" == *"$RegHash"* ]]; then
+        NoUpdates+=("$container")
       else
-        GotUpdates+=("$i")
+        if [[ -n "${DaysOld:-}" ]] && ! datecheck; then
+          NoUpdates+=("+$container ${ImageAge}d")
+        else
+          GotUpdates+=("$container")
+        fi
       fi
+    else
+      GotErrors+=("$container - No digest returned")
     fi
   else
-    # Here the RegHash is the result of an error code
-    GotErrors+=("$i - ${RegHash}")
+    GotErrors+=("$container - No digest returned")
   fi
+}
+
+for container in $(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}'); do
+  process_container "$container" || true
 done
 
-# Sort arrays alphabetically
 IFS=$'\n'
 NoUpdates=($(sort <<<"${NoUpdates[*]}"))
 GotUpdates=($(sort <<<"${GotUpdates[*]}"))
 unset IFS
 
-# Run the Prometheus exporter function if a collector directory is provided
-if [ -n "$CollectorTextFileDirectory" ]; then
-  end_time=$(date +%s)
-  check_duration=$(( end_time - start_time ))
-  source "$ScriptWorkDir/addons/prometheus/prometheus_collector.sh" && \
-    prometheus_exporter "${#NoUpdates[@]}" "${#GotUpdates[@]}" "${#GotErrors[@]}" "$ContCount" "$check_duration"
-fi
-
-# Define how many updates are available
-UpdCount="${#GotUpdates[@]}"
-
-# List what containers got updates or not
+echo ""
+echo "===== Summary ====="
 if [[ -n "${NoUpdates[*]}" ]]; then
   printf "\n%bContainers on latest version:%b\n" "$c_green" "$c_reset"
   printf "%s\n" "${NoUpdates[@]}"
@@ -377,25 +374,24 @@ if [[ -n "${GotErrors[*]}" ]]; then
 fi
 if [[ -n "${GotUpdates[*]}" ]]; then
   printf "\n%bContainers with updates available:%b\n" "$c_yellow" "$c_reset"
-  [[ -z "$AutoUp" ]] && options || printf "%s\n" "${GotUpdates[@]}"
-  [[ -n "$Notify" ]] && { [[ $(type -t send_notification) == function ]] && send_notification "${GotUpdates[@]}" || printf "Could not source notification function.\n"; }
+  printf "%s\n" "${GotUpdates[@]}"
 fi
 
-# Optionally get updates if there's any
-if [ -n "$GotUpdates" ]; then
-  if [ -z "$AutoUp" ]; then
-    printf "\n%bChoose what containers to update.%b\n" "$c_teal" "$c_reset"
+if [[ -n "${GotUpdates[*]}" ]]; then
+  UpdCount="${#GotUpdates[@]}"
+  if [[ -z "${AutoUp:-}" || "$AutoUp" == "no" ]]; then
+    printf "\n%bChoose what containers to update:%b\n" "$c_teal" "$c_reset"
+    options
     choosecontainers
   else
     SelectedUpdates=( "${GotUpdates[@]}" )
   fi
-  if [ "$AutoUp" == "${AutoUp#[Nn]}" ]; then
+  if [ "${#SelectedUpdates[@]}" -gt 0 ]; then
     NumberofUpdates="${#SelectedUpdates[@]}"
     CurrentQue=0
     for i in "${SelectedUpdates[@]}"; do
       ((CurrentQue+=1))
       unset CompleteConfs
-      # Extract labels and metadata
       ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
       ContImage=$(podman inspect "$i" --format='{{.ImageName}}')
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
@@ -411,30 +407,23 @@ if [ -n "$GotUpdates" ]; then
       ContRestartStack=$($jqbin -r '."sudo-kraken.podcheck.restart-stack"' <<< "$ContLabels")
       [ "$ContRestartStack" == "null" ] && ContRestartStack=""
       
-      # Checking if compose-values are empty - possibly started with podman run or managed by Quadlet
       if [ -z "$ContPath" ]; then
-        # Try exact match first:
         if systemctl --user status "$i.service" &>/dev/null; then
           unit="$i.service"
         elif [ "$(id -u)" -eq 0 ] && systemctl status "$i.service" &>/dev/null; then
           unit="$i.service"
         else
-          # Build a flexible regex pattern from the container name,
-          # allowing underscores or hyphens interchangeably.
           pattern="^$(echo "$i" | sed 's/_/[_-]/g')\.service$"
-          # List all user service units that match the pattern.
           candidates=$(systemctl --user list-units --type=service --no-legend | awk '{print $1}' | grep -iE "$pattern")
           if [ "$(echo "$candidates" | wc -l)" -eq 1 ]; then
             unit="$candidates"
           elif [ "$(echo "$candidates" | wc -l)" -gt 1 ]; then
-            # If multiple candidates are found, attempt to choose the one that exactly matches (ignoring case).
             for cand in $candidates; do
               if [[ "${cand,,}" == "${i,,}.service" ]]; then
                 unit="$cand"
                 break
               fi
             done
-            # If no exact match is found, default to the first candidate.
             if [ -z "${unit:-}" ]; then
               unit=$(echo "$candidates" | head -n 1)
             fi
@@ -444,7 +433,6 @@ if [ -n "$GotUpdates" ]; then
         if [ -n "${unit:-}" ]; then
           echo "Detected Quadlet-managed container: $i (matched unit: $unit)"
           podman pull "$ContImage"
-          # Attempt to restart in user scope first, then system scope if needed.
           if systemctl --user restart "$unit" &>/dev/null; then
             echo "Quadlet container $i updated and restarted (user scope)."
           elif [ "$(id -u)" -eq 0 ] && systemctl restart "$unit" &>/dev/null; then
@@ -463,23 +451,18 @@ if [ -n "$GotUpdates" ]; then
 
         continue
       fi
-      # cd to the compose-file directory to account for people who use relative volumes
       cd "$ContPath" || { echo "Path error - skipping $i"; continue; }
-      # Reformatting path + multi compose
       if [[ $ContConfigFile = /* ]]; then
         CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s " "$conf"; done)
       else
         CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s/%s " "$ContPath" "$conf"; done)
       fi
       printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
-      # Checking if Label Only option is set, and if container got the label
       [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != "true" ]] && { echo "No update label, skipping."; continue; } }
       podman pull "$ContImage"
-      # Check if the container got an environment file set and reformat it
       if [ -n "$ContEnv" ]; then
         ContEnvs=$(for env in ${ContEnv//,/ }; do printf -- "--env-file %s " "$env"; done)
       fi
-      # Check if the whole pod should be restarted
       if [[ "$ContRestartStack" == "true" ]] || [[ "$ForceRestartPods" == true ]]; then
         $PodmanComposeBin ${CompleteConfs} down
         $PodmanComposeBin ${CompleteConfs} ${ContEnvs} up -d
@@ -488,7 +471,7 @@ if [ -n "$GotUpdates" ]; then
       fi
     done
     printf "\n%bAll done!%b\n" "$c_green" "$c_reset"
-    if [[ -z "$AutoPrune" ]] && [[ -z "$AutoUp" ]]; then
+    if [[ -z "$AutoPrune" ]] && [[ "$AutoUp" == "no" ]]; then
       read -r -p "Would you like to prune dangling images? y/[n]: " AutoPrune
     fi
     [[ "$AutoPrune" =~ [yY] ]] && podman image prune -f
