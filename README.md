@@ -134,21 +134,45 @@ ___
   - regctl requires `amd64/arm64` - see [workaround](#roller_coaster-workaround-for-non-amd64--arm64) if other architecture is used.
 
 ## Install Instructions
-Download the script to a directory in **PATH**, I'd suggest using `~/.local/bin` as that's usually in **PATH**.  
-For OSX/macOS preferably use `/usr/local/bin`.
+
+### Quick Install (Script Only)
+For basic container checking without notifications:
 ```sh
-# basic example with curl:
+# Download and install main script
 curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh -o ~/.local/bin/podcheck.sh
 chmod +x ~/.local/bin/podcheck.sh
-
-# or oneliner with wget:
-wget -O ~/.local/bin/podcheck.sh "https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh" && chmod +x ~/.local/bin/podcheck.sh
-
-# OSX or macOS version with curl:
-curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh -o /usr/local/bin/podcheck.sh && chmod +x /usr/local/bin/podcheck.sh
 ```
+
+### Full Install (Script + Notification System)
+For complete functionality with all 13 notification services:
+```sh
+# Create podcheck directory
+mkdir -p ~/.local/bin/podcheck/
+
+# Download main script
+curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh -o ~/.local/bin/podcheck/podcheck.sh
+chmod +x ~/.local/bin/podcheck/podcheck.sh
+
+# Download notification templates
+cd ~/.local/bin/podcheck/
+curl -L https://github.com/sudo-kraken/podcheck/archive/main.tar.gz | tar -xz --strip-components=1 podcheck-main/notify_templates
+curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.config -o podcheck.config
+
+# Create symlink for easy access (optional)
+ln -sf ~/.local/bin/podcheck/podcheck.sh ~/.local/bin/podcheck.sh
+```
+
+### Alternative: Git Clone (Recommended for Development)
+```sh
+# Clone the repository
+git clone https://github.com/sudo-kraken/podcheck.git ~/.local/bin/podcheck
+chmod +x ~/.local/bin/podcheck/podcheck.sh
+
+# Create symlink for easy access
+ln -sf ~/.local/bin/podcheck/podcheck.sh ~/.local/bin/podcheck.sh
+```
+
 Then call the script anywhere with just `podcheck.sh`.
-Add preferred `notify.sh`-template to the same directory - this will not be touched by the scripts self-update function.
 
 ## Configuration
 
@@ -177,32 +201,21 @@ Triggered with the `-i` flag. Will send a list of containers with updates availa
 Example of a cron scheduled job running non-interactive at 10'oclock excluding 1 container and sending notifications:
 `0 10 * * * /home/user123/.local/bin/podcheck.sh -nix 10 -e excluded_container1`
 
-#### Installation and configuration:
-Set up a directory structure as below.
-You only need the `notify_templates/notify_v2.sh` file and any notification templates you wish to enable, but there is no harm in having all of them present.
-```
- .
-├── notify_templates/
-│   ├── notify_DSM.sh
-│   ├── notify_apprise.sh
-│   ├── notify_discord.sh
-│   ├── notify_generic.sh
-│   ├── notify_gotify.sh
-│   ├── notify_matrix.sh
-│   ├── notify_ntfy-sh.sh
-│   ├── notify_pushbullet.sh
-│   ├── notify_pushover.sh
-│   ├── notify_smtp.sh
-│   ├── notify_telegram.sh
-│   └── notify_v2.sh
-├── podcheck.config
-├── podcheck.sh
-└── urls.list         # optional
-```
-- Uncomment and set the `NOTIFY_CHANNELS=""` environment variable in `podcheck.config` to a space separated string of your desired notification channels to enable.
+#### Configuration:
+Configure notifications by editing `podcheck.config`:
+- Uncomment and set the `NOTIFY_CHANNELS=""` environment variable to a space separated string of your desired notification channels to enable.
 - Uncomment and set the environment variables related to the enabled notification channels. Eg. `GOTIFY_DOMAIN=""` + `GOTIFY_TOKEN=""`.
 
-It's recommended to only do configuration with variables within `podcheck.config` and not modify `notify_templates/notify_X.sh` directly. If you wish to customize the notify templates yourself, you may copy them to your project root directory alongside the main `podcheck.sh` (where they're also ignored by git). 
+Example configuration:
+```bash
+NOTIFY_CHANNELS="pushover telegram"
+PUSHOVER_APPTOKEN="your_app_token"
+PUSHOVER_USERKEY="your_user_key"
+TELEGRAM_BOTTOKEN="bot_token"
+TELEGRAM_CHATID="chat_id"
+```
+
+It's recommended to only do configuration with variables within `podcheck.config` and not modify `notify_templates/notify_X.sh` directly. 
 
 Customizing `notify_v2.sh` is handled the same as customizing the templates, but it must be renamed to `notify.sh` within the `podcheck.sh` root directory.
 
