@@ -1,27 +1,40 @@
-### DISCLAIMER: This is a third party addition to dockcheck - best effort testing.
-#
-# Copy/rename this file to notify.sh to enable the notification snippet.
-# Required receiving services must already be set up.
-# Requires jq installed and in PATH.
-# Modify to fit your setup - set Url and Token.
+#!/usr/bin/env bash
 
-send_notification() {
-[ -s "$ScriptWorkDir"/urls.list ] && releasenotes || Updates=("$@")
-UpdToString=$( printf '%s\\n' "${Updates[@]}" )
-FromHost=$(hostname)
+# Pushbullet notification template for podcheck v2
+# Requires: PUSHBULLET_URL, PUSHBULLET_TOKEN
 
-# platform specific notification code would go here
-printf "\nSending pushbullet notification\n"
+if [[ -z "${PUSHBULLET_URL:-}" ]] || [[ -z "${PUSHBULLET_TOKEN:-}" ]]; then
+  echo "Error: PUSHBULLET_URL and PUSHBULLET_TOKEN must be configured"
+  return 1
+fi
 
-MessageTitle="$FromHost - updates available."
-# Setting the MessageBody variable here.
-printf -v MessageBody "🐋 Containers on $FromHost with updates available:\n$UpdToString"
+# Check for jq dependency
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required for Pushbullet notifications"
+  return 1
+fi
 
-# Modify to fit your setup:
-PushUrl="https://api.pushbullet.com/v2/pushes"
-PushToken="Your Pushbullet token here"
-
-# Requires jq to process json data
-jq -n --arg title "$MessageTitle" --arg body "$MessageBody" '{body: $body, title: $title, type: "note"}' | curl -sS -o /dev/null --show-error --fail -X POST -H "Access-Token: $PushToken" -H "Content-type: application/json" $PushUrl -d @-
-
-}
+# Prepare the Pushbullet message
+if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
+  # Create JSON payload using jq
+  json_payload=$(jq -n \
+    --arg title "${NOTIFICATION_TITLE:-Podcheck Notification}" \
+    --arg body "${NOTIFICATION_MESSAGE}" \
+    '{body: $body, title: $title, type: "note"}')
+  
+  # Send to Pushbullet
+  if echo "$json_payload" | curl -s -o /dev/null --show-error --fail -X POST \
+          -H "Access-Token: ${PUSHBULLET_TOKEN}" \
+          -H "Content-Type: application/json" \
+          "${PUSHBULLET_URL}" \
+          -d @- \
+          ${CurlArgs:-} &>/dev/null; then
+    return 0
+  else
+    echo "Failed to send Pushbullet notification"
+    return 1
+  fi
+else
+  echo "No notification message provided"
+  return 1
+fi
