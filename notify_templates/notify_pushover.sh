@@ -10,14 +10,14 @@ fi
 
 # Prepare the Pushover message
 if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
-  # Send to Pushover
-  if curl -s -o /dev/null --show-error --fail -X POST \
+  # Send to Pushover (matching dockcheck format)
+  if curl -S -o /dev/null ${CurlArgs:-} -X POST \
           -F "token=${PUSHOVER_TOKEN}" \
           -F "user=${PUSHOVER_USER_KEY}" \
           -F "title=${NOTIFICATION_TITLE:-Podcheck Notification}" \
           -F "message=${NOTIFICATION_MESSAGE}" \
-          "${PUSHOVER_URL}" \
-          ${CurlArgs:-} &>/dev/null; then
+          "${PUSHOVER_URL}"; then
+    echo "Pushover notification sent successfully"
     return 0
   else
     echo "Failed to send Pushover notification"

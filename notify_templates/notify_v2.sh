@@ -223,28 +223,33 @@ notify_update_notification() {
   if [[ "${DISABLE_NOTIFY_NOTIFICATION:-false}" == "true" ]]; then
     return 0
   fi
-  
+
+  # This function should only run if there are actual template updates
+  # For now, just return without doing anything since we don't check for template updates
+  # This prevents premature notifications during startup
+  return 0
+
   # Check snooze
   if ! should_send_notification "notify"; then
     echo "Notify template update notification snoozed"
     return 0
   fi
-  
+
   local title="Notification templates updated"
   local message="Notification templates have been updated"
-  
+
   # Send to configured channels
   for channel in ${NOTIFY_CHANNELS}; do
     local channel_upper=$(echo "$channel" | tr '[:lower:]' '[:upper:]')
-    
+
     local template_var="${channel_upper}_TEMPLATE"
     local template="${!template_var:-$channel}"
-    
+
     local template_file="${ScriptWorkDir}/notify_templates/notify_${template}.sh"
     if [[ -f "$template_file" ]]; then
       export NOTIFICATION_MESSAGE="$message"
       export NOTIFICATION_TITLE="$title"
-      
+
       if source "$template_file"; then
         echo "Notify update notification sent via $channel"
       fi

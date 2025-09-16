@@ -15,11 +15,36 @@
 <h4 align="center">For Docker - see the original <a href="https://github.com/mag37/dockcheck">mag37/dockcheck</a>!</h4>
 
 ___
+## ⚠️ BREAKING CHANGES IN v0.7.1
+
+**If upgrading from v0.6.1 or earlier, please read this carefully!**
+
+### What Changed
+- **Notification system completely rewritten** - old `notify.sh` files will NOT work
+- **Configuration file now required** for notifications - see `podcheck.config`
+- **New notification template architecture** - all templates updated
+
+### Migration Steps from v0.6.1
+1. **Backup your old setup**: `cp notify.sh notify.sh.backup` (if you have one)
+2. **Copy the new config**: `cp podcheck.config ~/.config/podcheck.config`
+3. **Configure notifications**: Edit `~/.config/podcheck.config` with your credentials
+4. **Enable channels**: Set `NOTIFY_CHANNELS="pushover telegram"` (or your preferred services)
+5. **Test notifications**: Run `./podcheck.sh -i` to test
+6. **Remove old files**: `rm notify.sh` (if you have one)
+
+### New Features
+All dockcheck v0.7.1 notification services are now supported with enhanced functionality.
+
+___
 ## Changelog
 
-- **v0.7.1**:
+- **v0.7.1**: 🚨 **BREAKING CHANGES**
+    - **BREAKING**: Notification system completely rewritten - old notify.sh files incompatible
+    - **BREAKING**: Configuration file now required for notifications (`podcheck.config`)
+    - Added complete notification template parity with dockcheck v0.7.1
+    - Added 13 notification services: pushover, telegram, ntfy, smtp, matrix, pushbullet, apprise, discord, gotify, slack, Home Assistant, Synology DSM, generic
     - Added support for multiple notifications using the same template
-    - Added support for notification output format
+    - Added support for notification output format (text, json, csv)
     - Added support for file output
     - Added optional configuration variables per channel to (replace `<channel>` with any channel name):
       - `<channel>_TEMPLATE` : Specify a template
@@ -27,7 +52,7 @@ ___
       - `<channel>_CONTAINERSONLY` : Only notify for podman container related updates
       - `<channel>_ALLOWEMPTY` : Always send notifications, even when empty
       - `<channel>_OUTPUT` : Define output format
-    - Added advanced configuration system with `default.config`
+    - Added advanced configuration system with `podcheck.config`
     - Added new command line options: `-F`, `-I`, `-M`, `-u`, `-x`
     - Added async processing support with xargs
     - Enhanced notification system with `notify_v2.sh` wrapper
