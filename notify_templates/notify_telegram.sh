@@ -1,27 +1,46 @@
-### DISCLAIMER: This is a third party addition to dockcheck - best effort testing.
-#
-# Copy/rename this file to notify.sh to enable the notification snippet.
-# Required receiving services must already be set up.
-# Modify to fit your setup - set TelegramChatId and TelegramToken.
+#!/usr/bin/env bash
 
-send_notification() {
-    [ -s "$ScriptWorkDir"/urls.list ] && releasenotes || Updates=("$@")
-    UpdToString=$( printf '%s\\n' "${Updates[@]}" )
-    FromHost=$(hostname)
+# Telegram notification template for podcheck v2
+# Requires: TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+# Optional: TELEGRAM_TOPIC_ID (for forum groups)
 
-    # platform specific notification code would go here
-    printf "\nSending Telegram notification\n"
+if [[ -z "${TELEGRAM_TOKEN:-}" ]] || [[ -z "${TELEGRAM_CHAT_ID:-}" ]]; then
+  echo "Error: TELEGRAM_TOKEN and TELEGRAM_CHAT_ID must be configured"
+  return 1
+fi
 
-    # Setting the MessageBody variable here.
-    MessageBody="🐋 Containers on $FromHost with updates available: \n$UpdToString"
-
-    # Modify to fit your setup:
-    TelegramToken="Your Telegram token here"
-    TelegramChatId="Your Telegram ChatId here"
-    TelegramUrl="https://api.telegram.org/bot$TelegramToken"
-    TelegramTopicID=12345678 ## Set to 0 if not using specific topic within chat
-    TelegramData="{\"chat_id\":\"$TelegramChatId\",\"text\":\"$MessageBody\",\"message_thread_id\":\"$TelegramTopicID\",\"disable_notification\": false}"
-
-    curl -sS -o /dev/null --fail -X POST "$TelegramUrl/sendMessage" -H 'Content-Type: application/json' -d "$TelegramData"
-
-}
+# Prepare the Telegram message
+if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
+  # Escape special characters for JSON
+  telegram_message="${NOTIFICATION_MESSAGE}"
+  telegram_message="${telegram_message//\"/\\\"}"
+  telegram_message="${telegram_message//$'\n'/\\n}"
+  
+  # Build Telegram URL
+  telegram_url="https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
+  
+  # Create payload
+  telegram_data="{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"${telegram_message}\""
+  
+  # Add topic ID if specified
+  if [[ -n "${TELEGRAM_TOPIC_ID:-}" && "${TELEGRAM_TOPIC_ID}" != "0" ]]; then
+    telegram_data="${telegram_data},\"message_thread_id\":\"${TELEGRAM_TOPIC_ID}\""
+  fi
+  
+  telegram_data="${telegram_data},\"disable_notification\": false}"
+  
+  # Send to Telegram
+  if curl -s -o /dev/null --fail -X POST \
+          "${telegram_url}" \
+          -H 'Content-Type: application/json' \
+          -d "$telegram_data" \
+          ${CurlArgs:-} &>/dev/null; then
+    return 0
+  else
+    echo "Failed to send Telegram notification"
+    return 1
+  fi
+else
+  echo "No notification message provided"
+  return 1
+fi

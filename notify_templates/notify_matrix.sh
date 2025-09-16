@@ -1,28 +1,38 @@
-### DISCLAIMER: This is a third party addition to dockcheck - best effort testing.
-#
-# Copy/rename this file to notify.sh to enable the notification snippet.
-# Required receiving services must already be set up.
-# Modify to fit your setup - set MatrixServer, Room_id and AccessToken
+#!/usr/bin/env bash
 
-send_notification() {
-    [ -s "$ScriptWorkDir"/urls.list ] && releasenotes || Updates=("$@")
-    UpdToString=$( printf '%s\\n' "${Updates[@]}" )
-    FromHost=$(hostname)
+# Matrix notification template for podcheck v2
+# Requires: MATRIX_SERVER_URL, MATRIX_ROOM_ID, MATRIX_ACCESS_TOKEN
 
-    # platform specific notification code would go here
-    printf "\nSending Matrix notification\n"
+if [[ -z "${MATRIX_SERVER_URL:-}" ]] || [[ -z "${MATRIX_ROOM_ID:-}" ]] || [[ -z "${MATRIX_ACCESS_TOKEN:-}" ]]; then
+  echo "Error: MATRIX_SERVER_URL, MATRIX_ROOM_ID, and MATRIX_ACCESS_TOKEN must be configured"
+  return 1
+fi
 
-    # Setting the MessageBody variable here.
-    MessageBody="🐋 Containers on $FromHost with updates available: \n$UpdToString"
-
-    # Modify to fit your setup:
-    AccessToken="Your Matrix token here"
-    Room_id="Enter Room_id here"
-    MatrixServer="Enter Your HomeServer URL"
-    MsgBody="{\"msgtype\":\"m.text\",\"body\":\"$MessageBody\"}"
-
-    # URL Example:  https://matrix.org/_matrix/client/r0/rooms/!xxxxxx:example.com/send/m.room.message?access_token=xxxxxxxx
-
-    curl -sS -o /dev/null --fail -X POST "$MatrixServer/_matrix/client/r0/rooms/$Room_id/send/m.room.message?access_token=$AccessToken" -H 'Content-Type: application/json' -d "$MsgBody"
-
-}
+# Prepare the Matrix message
+if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
+  # Escape special characters for JSON
+  matrix_message="${NOTIFICATION_MESSAGE}"
+  matrix_message="${matrix_message//\"/\\\"}"
+  matrix_message="${matrix_message//$'\n'/\\n}"
+  
+  # Create Matrix message body
+  msg_body="{\"msgtype\":\"m.text\",\"body\":\"${matrix_message}\"}"
+  
+  # Build Matrix URL
+  matrix_url="${MATRIX_SERVER_URL}/_matrix/client/r0/rooms/${MATRIX_ROOM_ID}/send/m.room.message?access_token=${MATRIX_ACCESS_TOKEN}"
+  
+  # Send to Matrix
+  if curl -s -o /dev/null --fail -X POST \
+          "${matrix_url}" \
+          -H 'Content-Type: application/json' \
+          -d "$msg_body" \
+          ${CurlArgs:-} &>/dev/null; then
+    return 0
+  else
+    echo "Failed to send Matrix notification"
+    return 1
+  fi
+else
+  echo "No notification message provided"
+  return 1
+fi
