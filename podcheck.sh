@@ -664,6 +664,28 @@ if [[ -n "${GotUpdates:-}" ]]; then
 
       # Checking if compose-values are empty - hence started with podman run
       if [[ -z "$ContPath" ]]; then
+        # Quadlet detection: check for PODMAN_SYSTEMD_UNIT label first
+        unit=$(podman inspect "$i" --format '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
+        if [ -n "$unit" ]; then
+          printf "\n%bDetected Quadlet-managed container: %s (unit: %s)%b\n\n" \
+            "$c_green" "$i" "$unit" "$c_reset"
+          printf "%bPulling new image...%b\n\n" "$c_teal" "$c_reset"
+          if podman pull "$ContImage"; then
+            printf "\n%bSuccessfully pulled new image%b\n\n" "$c_green" "$c_reset"
+          else
+            printf "\n%bFailed to pull image for %s%b\n\n" "$c_red" "$i" "$c_reset"
+            continue
+          fi
+          printf "%bAttempting to restart unit...%b\n\n" "$c_teal" "$c_reset"
+          if timeout 60 systemctl --user restart "$unit"; then
+            printf "\n%bQuadlet container %s updated and restarted (user scope)%b\n\n" \
+              "$c_green" "$i" "$c_reset"
+          else
+            printf "\n%bFailed to restart unit %s%b\n" "$c_red" "$unit" "$c_reset"
+            systemctl --user status "$unit"
+          fi
+          continue
+        fi
         if [[ "$DRunUp" == true ]]; then
           podman pull "$ContImage"
           printf "%s\n" "$i got a new image downloaded, rebuild manually with preferred 'podman run'-parameters"
@@ -756,69 +778,4 @@ exit 0
       ContRestartStack=$($jqbin -r '."sudo-kraken.podcheck.restart-stack"' <<< "$ContLabels")
       [ "$ContRestartStack" == "null" ] && ContRestartStack=""
       
-      # Add spacing and colors to systemd unit detection
-      if [ -z "$ContPath" ]; then
-        printf "\n%bChecking systemd units for container: %s%b\n\n" \
-          "$c_teal" "$i" "$c_reset"
-        
-        unit=$(podman inspect "$i" --format '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
-        if [ -n "$unit" ]; then
-            printf "%bDetected Quadlet-managed container: %s (unit: %s)%b\n\n" \
-              "$c_green" "$i" "$unit" "$c_reset"
-
-            printf "%bPulling new image...%b\n\n" "$c_teal" "$c_reset"
-
-            if podman pull "$ContImage"; then
-                printf "\n%bSuccessfully pulled new image%b\n\n" "$c_green" "$c_reset"
-            else
-                printf "\n%bFailed to pull image for %s%b\n\n" "$c_red" "$i" "$c_reset"
-                continue
-            fi
-            printf "%bAttempting to restart unit...%b\n\n" "$c_teal" "$c_reset"
-            
-            if timeout 60 systemctl --user restart "$unit"; then
-                printf "\n%bQuadlet container %s updated and restarted (user scope)%b\n\n" \
-                  "$c_green" "$i" "$c_reset"
-            else
-                printf "\n%bFailed to restart unit %s%b\n" "$c_red" "$unit" "$c_reset"
-                systemctl --user status "$unit"
-            fi
-        fi
-        continue
-      fi
       cd "$ContPath" || { echo "Path error - skipping $i"; continue; }
-      if [[ $ContConfigFile = /* ]]; then
-        CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s " "$conf"; done)
-      else
-        CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s/%s " "$ContPath" "$conf"; done)
-      fi
-      printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
-      echo "Processing update for container: $i"
-      [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != "true" ]] && { echo "No update label, skipping."; continue; } }
-      podman pull "$ContImage"
-      ContEnvs=""
-      if [ -n "$ContEnv" ]; then
-        ContEnvs=$(for env in ${ContEnv//,/ }; do printf -- "--env-file %s " "$env"; done)
-      fi
-      if [[ "$ContRestartStack" == "true" ]] || [[ "$ForceRestartPods" == true ]]; then
-        ${PodmanBin} ${CompleteConfs} down
-        ${PodmanBin} ${CompleteConfs} ${ContEnvs} up -d
-      else
-        ${PodmanBin} ${CompleteConfs} ${ContEnvs} up -d ${ContName}
-      fi
-    done
-    if [[ "$AutoPrune" == false ]] && [[ "$AutoMode" == false ]]; then 
-      printf "\n"; read -rep "Would you like to prune dangling images? y/[n]: " AutoPrune; 
-    fi
-    if [[ "$AutoPrune" == true ]] || [[ "$AutoPrune" =~ [yY] ]]; then 
-      printf "\nAuto pruning.."; podman image prune -f; 
-    fi
-    printf "\n%bAll done!%b\n" "$c_green" "$c_reset"
-  else
-    printf "\nNo updates installed, exiting.\n"
-  fi
-else
-  printf "\nNo updates available, exiting.\n"
-fi
-
-exit 0
