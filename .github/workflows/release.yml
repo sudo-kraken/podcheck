@@ -149,6 +149,7 @@ jobs:
         run: |
           cosign attest-blob \
             --type cyclonedx \
+            --predicate podcheck-${{ env.VERSION }}.sbom \
             --bundle podcheck-${{ env.VERSION }}.sbom.bundle \
             podcheck-${{ env.VERSION }}.sbom
 
