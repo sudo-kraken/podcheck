@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Devcontainer Smoke Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: devcontainer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Smoke Test Dev Container
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          imageName: ghcr.io/${{ github.repository }}/devcontainer
+          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
+          push: never
+
+      - name: Verify tools and settings inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            bash -lc '
+            set -euo pipefail
+
+            echo "User check"
+            id -un | grep -qx vscode
+
+            echo "PATH check"
+            echo "$PATH" | grep -q "/usr/local/bin"
+            echo "$PATH" | grep -q "/home/vscode/.local/bin"
+
+            echo "Core tools"
+            for cmd in bash shellcheck shfmt jq yq podman skopeo cosign regctl pre-commit node npm; do
+              command -v "$cmd" >/dev/null || { echo "Missing: $cmd"; exit 1; }
+            done
+
+            echo "Versions"
+            shellcheck --version >/dev/null
+            shfmt -version >/dev/null
+            regctl version >/dev/null || regctl --version >/dev/null || true
+
+            echo "Docker client check (optional)"
+            if command -v docker >/dev/null; then
+              if [ -S /var/run/docker.sock ]; then
+                docker version >/dev/null 2>&1 || true
+                docker ps >/dev/null 2>&1 || true
+                echo "Docker socket present"
+              else
+                echo "No Docker socket, skipping daemon checks"
+              fi
+            else
+              echo "Docker CLI not installed in devcontainer, skipping"
+            fi
+
+            echo "OK: devcontainer is healthy"
+            '

@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Test podcheck
+name: Test Podcheck
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: podcheck-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
