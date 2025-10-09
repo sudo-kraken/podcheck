@@ -145,11 +145,10 @@ jobs:
             --bundle podcheck-${VERSION}.tar.gz.bundle \
             podcheck-${VERSION}.tar.gz
 
-      - name: Attest SBOM
+      - name: Sign SBOM
         run: |
-          cosign attest-blob \
-            --type cyclonedx \
-            --predicate podcheck-${{ env.VERSION }}.sbom \
+          # Sign the SBOM file
+          cosign sign-blob \
             --bundle podcheck-${{ env.VERSION }}.sbom.bundle \
             podcheck-${{ env.VERSION }}.sbom
 
@@ -196,7 +195,7 @@ jobs:
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             release/podcheck-${VERSION}.tar.gz
 
-      - name: Verify SBOM attestation
+      - name: Verify SBOM signature
         run: |
           cosign verify-blob \
             --bundle signed/podcheck-${VERSION}.sbom.bundle \
