@@ -1,0 +1,47 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  
+  customManagers: [
+    {
+      description: "Track GitHub release downloads in shell scripts using /latest/download/",
+      customType: "regex",
+      fileMatch: ["\\.sh$"],
+      matchStrings: [
+        'https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/latest/download/(?<packageName>[^\\s"\']+)',
+      ],
+      datasourceTemplate: "github-releases",
+      versioningTemplate: "semver",
+    },
+    {
+      description: "Track version variable in podcheck.sh",
+      customType: "regex",
+      fileMatch: ["podcheck\\.sh$"],
+      matchStrings: [
+        'VERSION\\s*=\\s*["\'](?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)["\']',
+      ],
+      depNameTemplate: "sudo-kraken/podcheck",
+      datasourceTemplate: "github-tags",
+      versioningTemplate: "semver",
+    },
+  ],
+  
+  packageRules: [
+    {
+      description: "Group shell script binary dependency updates",
+      matchFileNames: ["**/*.sh"],
+      matchDatasources: ["github-releases"],
+      groupName: "Shell script binaries",
+      schedule: ["every weekend"],
+    },
+    {
+      description: "Don't automerge shell script updates (requires testing)",
+      matchFileNames: ["**/*.sh"],
+      automerge: false,
+    },
+    {
+      description: "Label shell script updates",
+      matchFileNames: ["**/*.sh"],
+      addLabels: ["renovate/shell"],
+    },
+  ],
+}

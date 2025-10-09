@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run podcheck.sh (check only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bash ${workspaceFolder}/podcheck.sh -n",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Run podcheck.sh (help)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bash ${workspaceFolder}/podcheck.sh -h",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Run podcheck.sh (version)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bash ${workspaceFolder}/podcheck.sh -v",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Run Current Bash Script",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bash ${file}",
+      "cwd": "${fileDirname}"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Shell Check
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.sh'
+  pull_request:
+    paths:
+      - '**.sh'
+
+permissions: {}
+
+concurrency:
+  group: shellcheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Run ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck --severity=warning --format=gcc
+

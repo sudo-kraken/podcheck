@@ -1,0 +1,52 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Test podcheck
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Test help command
+        run: |
+          bash podcheck.sh -h
+
+      - name: Test version command
+        run: |
+          bash podcheck.sh -v
+
+      - name: Test syntax
+        run: |
+          bash -n podcheck.sh
+          
+      - name: Check for required dependencies
+        run: |
+          bash -c "
+            # Test that script can run without errors when checking version
+            ./podcheck.sh -v || exit 1
+          "
