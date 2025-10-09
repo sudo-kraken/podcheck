@@ -87,7 +87,7 @@ jobs:
             NOTIFICATION_GUIDE.md \
             MIGRATION.md \
             notify_templates/ \
-            addons/
+            addons/ \
             extras/
           
           # Create checksums
