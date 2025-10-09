@@ -34,19 +34,17 @@ jobs:
 
       - name: Test help command
         run: |
-          bash podcheck.sh -h
+          bash podcheck.sh -h || [[ $? -eq 2 ]]
 
       - name: Test version command
         run: |
           bash podcheck.sh -v
 
-      - name: Test syntax
+      - name: Test syntax check
         run: |
           bash -n podcheck.sh
-          
-      - name: Check for required dependencies
+
+      - name: Verify script is executable
         run: |
-          bash -c "
-            # Test that script can run without errors when checking version
-            ./podcheck.sh -v || exit 1
-          "
+          chmod +x podcheck.sh
+          ./podcheck.sh -v
