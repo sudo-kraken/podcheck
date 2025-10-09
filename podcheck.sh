@@ -3,14 +3,14 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v0.7.2"
+VERSION="v0.7.3"
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
 ScriptPath="$(readlink -f "$0")"
 ScriptWorkDir="$(dirname "$ScriptPath")"
 
-# ChangeNotes: Sync with dockcheck v0.7.1 - Added advanced notifications, async processing, configuration system
+# ChangeNotes: Fix self_update function ordering, improve CI workflows, add release automation
 Github="https://github.com/sudo-kraken/podcheck"
 RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh"
 
@@ -27,6 +27,41 @@ source_if_exists_or_fail() {
 
 # User customizable defaults
 source_if_exists_or_fail "${HOME}/.config/podcheck.config" || source_if_exists_or_fail "${ScriptWorkDir}/podcheck.config"
+
+# Self-update functions (must be defined before use)
+self_update_curl() {
+  cp "$ScriptPath" "$ScriptPath".bak
+  if command -v curl &>/dev/null; then
+    curl -L "$RawUrl" > "$ScriptPath"
+    chmod +x "$ScriptPath"
+    printf "\n%s\n" "--- starting over with the updated version ---"
+    exec "$ScriptPath" "${ScriptArgs[@]}"
+    exit 1
+  elif command -v wget &>/dev/null; then
+    wget "$RawUrl" -O "$ScriptPath"
+    chmod +x "$ScriptPath"
+    printf "\n%s\n" "--- starting over with the updated version ---"
+    exec "$ScriptPath" "${ScriptArgs[@]}"
+    exit 1
+  else
+    printf "curl/wget not available - download the update manually: %s \n" "$Github"
+  fi
+}
+
+self_update() {
+  cd "$ScriptWorkDir" || { printf "Path error, skipping update.\n"; return; }
+  if command -v git &>/dev/null && [[ "$(git ls-remote --get-url 2>/dev/null)" =~ .*"sudo-kraken/podcheck".* ]]; then
+    printf "\n%s\n" "Pulling the latest version."
+    git pull --force || { printf "Git error, manually pull/clone.\n"; return; }
+    printf "\n%s\n" "--- starting over with the updated version ---"
+    cd - || { printf "Path error.\n"; return; }
+    exec "$ScriptPath" "${ScriptArgs[@]}"
+    exit 1
+  else
+    cd - || { printf "Path error.\n"; return; }
+    self_update_curl
+  fi
+}
 
 cleanup() {
     # Temporarily disable failglob for cleanup
@@ -205,41 +240,6 @@ exec_if_exists_or_fail() {
 
 # Now get the search name from the first remaining positional parameter
 SearchName="${1:-}"
-
-# Self-update functions
-self_update_curl() {
-  cp "$ScriptPath" "$ScriptPath".bak
-  if command -v curl &>/dev/null; then
-    curl -L "$RawUrl" > "$ScriptPath"
-    chmod +x "$ScriptPath"
-    printf "\n%s\n" "--- starting over with the updated version ---"
-    exec "$ScriptPath" "${ScriptArgs[@]}"
-    exit 1
-  elif command -v wget &>/dev/null; then
-    wget "$RawUrl" -O "$ScriptPath"
-    chmod +x "$ScriptPath"
-    printf "\n%s\n" "--- starting over with the updated version ---"
-    exec "$ScriptPath" "${ScriptArgs[@]}"
-    exit 1
-  else
-    printf "curl/wget not available - download the update manually: %s \n" "$Github"
-  fi
-}
-
-self_update() {
-  cd "$ScriptWorkDir" || { printf "Path error, skipping update.\n"; return; }
-  if command -v git &>/dev/null && [[ "$(git ls-remote --get-url 2>/dev/null)" =~ .*"sudo-kraken/podcheck".* ]]; then
-    printf "\n%s\n" "Pulling the latest version."
-    git pull --force || { printf "Git error, manually pull/clone.\n"; return; }
-    printf "\n%s\n" "--- starting over with the updated version ---"
-    cd - || { printf "Path error.\n"; return; }
-    exec "$ScriptPath" "${ScriptArgs[@]}"
-    exit 1
-  else
-    cd - || { printf "Path error.\n"; return; }
-    self_update_curl
-  fi
-}
 
 choosecontainers() {
   while [[ -z "${ChoiceClean:-}" ]]; do

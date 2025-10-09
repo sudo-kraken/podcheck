@@ -38,6 +38,14 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v0.7.3**: 🐛 **Bug Fixes & CI Improvements**
+    - **Fixed**: Self-update function ordering issue causing "command not found" error
+    - **Fixed**: Moved `self_update()` and `self_update_curl()` functions before they are called
+    - **Added**: Comprehensive CI workflows (ShellCheck, testing, release automation)
+    - **Added**: Automated release workflow with SBOM generation and signing
+    - **Added**: Renovate configuration for shell script dependency tracking
+    - **Improved**: ShellCheck workflow to only fail on errors, not warnings
+    - **Improved**: Test workflow to properly handle exit codes
 - **v0.7.1**: 🚨 **BREAKING CHANGES**
     - **BREAKING**: Notification system completely rewritten - old notify.sh files incompatible
     - **BREAKING**: Configuration file now required for notifications (`podcheck.config`)
