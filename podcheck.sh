@@ -769,13 +769,3 @@ else
 fi
 
 exit 0
-      ContName=$($jqbin -r '."com.docker.compose.service"' <<< "$ContLabels")
-      [ "$ContName" == "null" ] && ContName=""
-      ContEnv=$($jqbin -r '."com.docker.compose.project.environment_file"' <<< "$ContLabels")
-      [ "$ContEnv" == "null" ] && ContEnv=""
-      ContUpdateLabel=$($jqbin -r '."sudo-kraken.podcheck.update"' <<< "$ContLabels")
-      [ "$ContUpdateLabel" == "null" ] && ContUpdateLabel=""
-      ContRestartStack=$($jqbin -r '."sudo-kraken.podcheck.restart-stack"' <<< "$ContLabels")
-      [ "$ContRestartStack" == "null" ] && ContRestartStack=""
-      
-      cd "$ContPath" || { echo "Path error - skipping $i"; continue; }
