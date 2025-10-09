@@ -1,58 +1,38 @@
-{{
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "semanticCommits": "enabled",
 
-  "packageRules": [  "packageRules": [
+  "packageRules": [
+    {
+      // Generic dependency commits, excluding Actions
+      "excludeManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "semanticCommitType": "feat",
+      "semanticCommitScope": "deps",
+      "commitMessagePrefix": "feat(deps)!: ",
+      "commitMessageTopic": "{{depName}}",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "excludeManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor"],
+      "semanticCommitType": "feat",
+      "semanticCommitScope": "deps",
+      "commitMessageTopic": "{{depName}}",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "excludeManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch", "digest"],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps",
+      "commitMessageTopic": "{{depName}}",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
 
-    {    {
-
-      "matchFileNames": ["**/*.sh"],      "matchDatasources": ["pypi"],
-
-      "matchUpdateTypes": ["major"],      "matchUpdateTypes": ["major"],
-
-      "commitMessagePrefix": "feat(deps)!: ",      "commitMessagePrefix": "feat(python)!: ",
-
-      "commitMessageTopic": "{{depName}}",      "commitMessageTopic": "{{depName}}",
-
-      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
-
-    },    },
-
-    {    {
-
-      "matchFileNames": ["**/*.sh"],      "matchDatasources": ["pypi"],
-
-      "matchUpdateTypes": ["minor"],      "matchUpdateTypes": ["minor"],
-
-      "semanticCommitType": "feat",      "semanticCommitType": "feat",
-
-      "semanticCommitScope": "deps",      "semanticCommitScope": "python",
-
-      "commitMessageTopic": "{{depName}}",      "commitMessageTopic": "{{depName}}",
-
-      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
-
-    },    },
-
-    {    {
-
-      "matchFileNames": ["**/*.sh"],      "matchDatasources": ["pypi"],
-
-      "matchUpdateTypes": ["patch"],      "matchUpdateTypes": ["patch"],
-
-      "semanticCommitType": "fix",      "semanticCommitType": "fix",
-
-      "semanticCommitScope": "deps",      "semanticCommitScope": "python",
-
-      "commitMessageTopic": "{{depName}}",      "commitMessageTopic": "{{depName}}",
-
-      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
-
-    },    },
-
-    {  ]
-
-      "matchManagers": ["github-actions"],}
+    {
+      "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["major"],
       "commitMessagePrefix": "feat(ci)!: ",
       "commitMessageTopic": "{{depName}}",
