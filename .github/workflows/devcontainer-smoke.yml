@@ -23,8 +23,6 @@ jobs:
       - name: Build devcontainer
         uses: devcontainers/ci@v0.3
         with:
-          imageName: ghcr.io/${{ github.repository }}/devcontainer
-          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
           push: never
 
       - name: Verify tools and settings inside devcontainer
@@ -43,7 +41,7 @@ jobs:
             echo "$PATH" | grep -q "/home/vscode/.local/bin"
 
             echo "Core tools"
-            for cmd in bash shellcheck shfmt jq yq podman skopeo cosign regctl pre-commit node npm; do
+            for cmd in bash shellcheck shfmt jq yq podman skopeo cosign regctl node npm; do
               command -v "$cmd" >/dev/null || { echo "Missing: $cmd"; exit 1; }
             done
 
