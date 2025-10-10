@@ -10,9 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
   && rm -rf /var/lib/apt/lists/*
 
-# PEP 668: allow installing into the system site-packages in this container
-RUN python3 -m pip install --no-cache-dir --break-system-packages pre-commit
-
 # regctl static binary
 RUN set -eux; \
     arch="$(uname -m)"; case "$arch" in x86_64) a=amd64 ;; aarch64) a=arm64 ;; *) a=amd64 ;; esac; \
