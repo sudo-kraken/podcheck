@@ -1,0 +1,88 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  semanticCommits: "enabled",
+
+  packageRules: [
+    {
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["major"],
+      commitMessagePrefix: "feat(container)!: ",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: " ( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["minor"],
+      semanticCommitType: "feat",
+      semanticCommitScope: "container",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["patch"],
+      semanticCommitType: "fix",
+      semanticCommitScope: "container",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["digest"],
+      semanticCommitType: "chore",
+      semanticCommitScope: "container",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentDigestShort}} → {{newDigestShort}} )",
+    },
+    {
+      excludeManagers: ["github-actions"],
+      matchUpdateTypes: ["major"],
+      semanticCommitType: "feat",
+      semanticCommitScope: "deps",
+      commitMessagePrefix: "feat(deps)!: ",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      excludeManagers: ["github-actions"],
+      matchUpdateTypes: ["minor"],
+      semanticCommitType: "feat",
+      semanticCommitScope: "deps",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      excludeManagers: ["github-actions"],
+      matchUpdateTypes: ["patch", "digest"],
+      semanticCommitType: "fix",
+      semanticCommitScope: "deps",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["major"],
+      commitMessagePrefix: "feat(ci)!: ",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor"],
+      semanticCommitType: "feat",
+      semanticCommitScope: "ci",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["patch", "digest"],
+      semanticCommitType: "fix",
+      semanticCommitScope: "ci",
+      commitMessageTopic: "{{depName}}",
+      commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
+    },
+  ],
+}

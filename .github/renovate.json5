@@ -3,7 +3,6 @@
   description: "Automated dependency updates for podcheck",
   extends: [
     "config:recommended",
-    "docker:enableMajor",
     "replacements:k8s-registry-move",
     ":automergePr",
     ":automergePatch",
@@ -12,29 +11,19 @@
     ":dependencyDashboard",
     ":semanticCommits",
     ":timezone(Europe/London)",
-    "github>sudo-kraken/podcheck//.github/renovate/labels.json5",
+    "github>sudo-kraken/podcheck//.github/renovate/actions.json5",
     "github>sudo-kraken/podcheck//.github/renovate/devcontainers.json5",
-    "github>sudo-kraken/podcheck//.github/renovate/semantic_commits.json5",
+    "github>sudo-kraken/podcheck//.github/renovate/labels.json5",
+    "github>sudo-kraken/podcheck//.github/renovate/semanticCommits.json5",
     "github>sudo-kraken/podcheck//.github/renovate/shell.json5",
   ],
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
   suppressNotifications: ["prEditedNotification", "prIgnoreNotification"],
   rebaseWhen: "conflicted",
+  pruneStaleBranches: true,
+  pruneBranchAfterAutomerge: true,
   prConcurrentLimit: 5,
   labels: ["dependencies"],
+  schedule: ["after 9pm on sunday"],
   minimumReleaseAge: "7 days",
-
-  lockFileMaintenance: {
-    enabled: true,
-    schedule: ["after 9pm on sunday"],
-    automerge: true,
-    branchTopic: "lock-file-maintenance"
-  },  
-
-  packageRules: [
-    {
-      matchManagers: ["github-actions"],
-      minimumReleaseAge: null
-    }
-  ]
 }
