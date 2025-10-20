@@ -1,21 +1,75 @@
-<p align="center">
-  <img src="extras/podcheck.png" width="250" title="podcheck" style="background-color: white; padding: 1px; border-radius: 15px; margin-bottom: 10px; object-fit: cover; object-position: center top; height: 210px;">
-</p>
-<p align="center">
-  <img src="https://img.shields.io/badge/bash-4.3-green?style=flat-square&logo=gnubash" alt="bash">
-  <a href="https://www.gnu.org/licenses/gpl-3.0.html"><img src="https://img.shields.io/badge/license-GPLv3-red?style=flat-square" alt="GPLv3"></a>
-  <img src="https://img.shields.io/github/v/tag/sudo-kraken/podcheck?style=flat-square&label=release" alt="release">
-  <br>
-  <a href="https://www.buymeacoffee.com/jharrison94"><img src="https://img.shields.io/badge/-buy_me_a%C2%A0coffee-gray?logo=buy-me-a-coffee" alt="Buy Me A Coffee"></a>
-</p>
+<div align="center">
+<img src="extras/podcheck.png" align="center" width="144px" height="144px"/>
 
-<h2 align="center">CLI tool to automate podman image updates or notifying when updates are available.</h2>
-<h3 align="center">selective updates, exclude containers, custom labels, notification plugins, prune when done etc.</h3>
+### Podcheck
 
-<h4 align="center">For Docker - see the original <a href="https://github.com/mag37/dockcheck">mag37/dockcheck</a>!</h4>
+_A CLI tool to automate Podman image updates or notify when updates are available. Selective updates, exclude containers, custom labels, notification plugins, prune when done etc._
+</div>
+
+<div align="center">
+
+![bash 4.3+](https://img.shields.io/badge/bash-4.3-green?style=for-the-badge&logo=gnubash)
+![Release](https://img.shields.io/github/v/tag/sudo-kraken/podcheck?style=for-the-badge&label=release)
+
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sudo-kraken/podcheck?label=openssf%20scorecard&style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/sudo-kraken/podcheck)
+</div>
+
+## Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Breaking changes in v0.7.1](#breaking-changes-in-v071)
+  - [What changed](#what-changed)
+  - [Migration steps from-v061](#migration-steps-from-v061)
+  - [New features](#new-features)
+- [Changelog](#changelog)
+- [`podcheck.sh` usage](#podchecksh)
+  - [Basic example](#basic-example)
+- [Dependencies](#dependencies)
+- [Install instructions](#install-instructions)
+  - [Quick install script only](#quick-install-script-only)
+  - [Full install script--notification-system](#full-install-script--notification-system)
+  - [Alternative git clone recommended-for-development](#alternative-git-clone-recommended-for-development)
+- [Configuration](#configuration)
+- [Notifications](#notifications)
+  - [Configuration](#configuration-1)
+  - [Snooze feature](#snooze-feature)
+  - [Current notify templates](#current-notify-templates)
+  - [Notification channel configuration](#notification-channel-configuration)
+- [Release notes addon](#release-notes-addon)
+- [Asynchronous update checks with xargs](#asynchronous-update-checks-with-xargs--x-n-option-default1)
+- [Extra plugins and tools](#extra-plugins-and-tools)
+  - [Using podchecksh with systemd units Quadlet](#using-podchecksh-with-systemd-units-quadlet)
+  - [Prometheus and node_exporter](#prometheus-and-node_exporter)
+- [Labels](#labels)
+- [Workaround for non-amd64--arm64](#workaround-for-non-amd64--arm64)
+- [Function to auth with Docker Hub before running](#function-to-auth-with-docker-hub-before-running)
+- [`-r` flag disclaimer and warning](#-r-flag-disclaimer-and-warning)
+- [Known issues](#known-issues)
+- [Debugging](#debugging)
+- [The story behind podcheck](#the-story-behind-podcheck)
+- [Acknowledgements](#acknowledgements)
+- [Licence](#licence)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Support](#support)
+
+## Overview
+
+podcheck automates checking and updating Podman images and compose stacks, or notifies you when updates are available. It supports selective updates, container exclusion, labels to control behaviour, a rich notification system and optional pruning when finished.
+
+## Features
+
+- Selective updates or notify-only operation
+- Exclude containers, include stopped containers, respect labels
+- Compose-aware with options to restart only a specific service or the whole stack
+- Systemd Quadlet detection and restart
+- Prometheus metrics export for node_exporter
+- Self-update capability and optional async processing
+- Rich notifications with multiple channels and snooze support
 
 ___
-## ⚠️ BREAKING CHANGES IN v0.7.1
+## BREAKING CHANGES IN v0.7.1
 
 **If upgrading from v0.6.1 or earlier, please read this carefully!**
 
@@ -80,9 +134,10 @@ ___
     - **Miscellaneous Improvements:**  
       - Enhanced dependency installer to support both package manager and static binary installations for `jq` and `regctl`.
       - General code refactoring across the project for better readability and maintainability.
-___
 
+___
 ## `podcheck.sh`
+
 ```
 $ ./podcheck.sh -h
 Syntax:     podcheck.sh [OPTION] [comma separated names to include]
@@ -111,7 +166,8 @@ Options:
 -x N   Set max asynchronous subprocesses, 1 default, 0 to disable, 32+ tested.
 ```
 
-### Basic example:
+### Basic example
+
 ```
 $ ./podcheck.sh
 ...
@@ -126,33 +182,38 @@ Containers with updates available:
 Choose what containers to update:
 Enter number(s) separated by comma, [a] for all - [q] to quit:
 ```
-Then it proceeds to run podman pull and podman compose up -d, or restarts systemd units for every container with updates. 
-After the updates are complete, you'll be prompted if you'd like to prune dangling images
+
+Then it proceeds to run `podman pull` and `podman compose up -d`, or restarts systemd units for every container with updates.  
+After the updates are complete, you will be prompted if you would like to prune dangling images.
 
 ___
-
 ## Dependencies
-- Running podman (duh) and compose, either standalone or plugin.
-- Bash shell or compatible shell of at least v4.3
-  - POSIX `xargs`, usually default but can be installed with the `findutils` package - to enable async.
-- [jq](https://github.com/jqlang/jq)
-  - User will be prompted to install with package manager or download static binary.
-- [regclient/regctl](https://github.com/regclient/regclient) (Licensed under [Apache-2.0 License](http://www.apache.org/licenses/LICENSE-2.0))  
-  - User will be prompted to download `regctl` if not in `PATH` or `PWD`.
-  - regctl requires `amd64/arm64` - see [workaround](#roller_coaster-workaround-for-non-amd64--arm64) if other architecture is used.
 
-## Install Instructions
+- Running **Podman** and **compose**, either standalone or plugin
+- **Bash** 4.3 or newer  
+  - POSIX `xargs` for async, usually present via `findutils`
+- **jq** https://github.com/jqlang/jq  
+  - You will be prompted to install via package manager or download a static binary
+- **regclient/regctl** https://github.com/regclient/regclient  
+  - You will be prompted to download `regctl` if not present in `PATH` or `PWD`  
+  - `regctl` provides `amd64` and `arm64` binaries; see the workaround below for other architectures
 
-### Quick Install (Script Only)
+## Install instructions
+
+### Quick install (script only)
+
 For basic container checking without notifications:
+
 ```sh
 # Download and install main script
 curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh -o ~/.local/bin/podcheck.sh
 chmod +x ~/.local/bin/podcheck.sh
 ```
 
-### Full Install (Script + Notification System)
-For complete functionality with all 13 notification services:
+### Full install (script + notification system)
+
+For complete functionality with all notification services:
+
 ```sh
 # Create podcheck directory
 mkdir -p ~/.local/bin/podcheck/
@@ -161,7 +222,7 @@ mkdir -p ~/.local/bin/podcheck/
 curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh -o ~/.local/bin/podcheck/podcheck.sh
 chmod +x ~/.local/bin/podcheck/podcheck.sh
 
-# Download notification templates
+# Download notification templates and default config
 cd ~/.local/bin/podcheck/
 curl -L https://github.com/sudo-kraken/podcheck/archive/main.tar.gz | tar -xz --strip-components=1 podcheck-main/notify_templates
 curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.config -o podcheck.config
@@ -170,7 +231,8 @@ curl -L https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.con
 ln -sf ~/.local/bin/podcheck/podcheck.sh ~/.local/bin/podcheck.sh
 ```
 
-### Alternative: Git Clone (Recommended for Development)
+### Alternative: git clone (recommended for development)
+
 ```sh
 # Clone the repository
 git clone https://github.com/sudo-kraken/podcheck.git ~/.local/bin/podcheck
@@ -184,37 +246,44 @@ Then call the script anywhere with just `podcheck.sh`.
 
 ## Configuration
 
-**For advanced features like notifications and custom settings**, you'll need to create a configuration file:
+For advanced features like notifications and custom settings, create a configuration file:
 
-1. **Copy the default configuration**: `cp default.config podcheck.config`
-2. **Place it alongside the script** or in `~/.config/`
-3. **Uncomment and modify** the settings you want to customize
+1. Copy the default configuration: `cp default.config podcheck.config`
+2. Place it alongside the script or in `~/.config/`
+3. Uncomment and modify the settings you want to customise
 
-The `podcheck.config` file must be present and properly configured for:
+`podcheck.config` controls:
 
-- Notification channels (`NOTIFY_CHANNELS`)
-- Custom timeout, async, and update behaviors  
+- Notification channels `NOTIFY_CHANNELS`
+- Timeouts, async and update behaviour
 - Notification templates and credentials
 
-Without this config file, podcheck will run with default settings and notifications will be disabled.
+Without this file, podcheck runs with defaults and notifications are disabled.
 
-Alternatively create an alias where specific flags and values are set.  
-Example `alias pc=podcheck.sh -p -x 10 -t 3`.
+Alternatively create an alias where specific flags and values are set, for example:
 
+```sh
+alias pc='podcheck.sh -p -x 10 -t 3'
+```
 
 ## Notifications
-Triggered with the `-i` flag. Will send a list of containers with updates available and a notification when `podcheck.sh` itself has an update.
-`notify_templates/notify_v2.sh` is the default notification wrapper, if `notify.sh` is present and configured, it will override.
 
-Example of a cron scheduled job running non-interactive at 10'oclock excluding 1 container and sending notifications:
-`0 10 * * * /home/user123/.local/bin/podcheck.sh -nix 10 -e excluded_container1`
+Triggered with the `-i` flag. Sends a list of containers with updates and a note when `podcheck.sh` itself has an update.  
+`notify_templates/notify_v2.sh` is the default notification wrapper. If `notify.sh` is present and configured, it will override.
 
-#### Configuration:
-Configure notifications by editing `podcheck.config`:
-- Uncomment and set the `NOTIFY_CHANNELS=""` environment variable to a space separated string of your desired notification channels to enable.
-- Uncomment and set the environment variables related to the enabled notification channels. Eg. `GOTIFY_DOMAIN=""` + `GOTIFY_TOKEN=""`.
+Example cron job running non-interactive at 10 o’clock, excluding one container and sending notifications:
 
-Example configuration:
+```
+0 10 * * * /home/user123/.local/bin/podcheck.sh -nix 10 -e excluded_container1
+```
+
+#### Configuration
+
+Edit `podcheck.config`:
+
+- Set `NOTIFY_CHANNELS="pushover telegram"` for example
+- Add required variables for each channel you enable, for example:
+
 ```bash
 NOTIFY_CHANNELS="pushover telegram"
 PUSHOVER_APPTOKEN="your_app_token"
@@ -223,130 +292,119 @@ TELEGRAM_BOTTOKEN="bot_token"
 TELEGRAM_CHATID="chat_id"
 ```
 
-It's recommended to only do configuration with variables within `podcheck.config` and not modify `notify_templates/notify_X.sh` directly. 
+It is recommended to configure via `podcheck.config` and not edit `notify_templates/notify_*.sh` directly.  
+To customise the wrapper, rename a modified `notify_v2.sh` to `notify.sh` in the podcheck root directory.
 
-Customizing `notify_v2.sh` is handled the same as customizing the templates, but it must be renamed to `notify.sh` within the `podcheck.sh` root directory.
+#### Snooze feature
 
-#### Snooze feature:
-Configure to receive scheduled notifications only if they're new since the last notification - within a set time frame.
+Receive scheduled notifications only if they are new since the last notification within a set duration.
 
-**Example:** *Podcheck is scheduled to run every hour. You will receive an update notification within an hour of availability.*  
-**Snooze enabled:** You will not receive a repeated notification about an already notified update within the snooze duration. 
+- Enable by setting `SNOOZE_SECONDS=<seconds>` in `podcheck.config`
+- Snooze is split into: container updates, `podcheck.sh` self updates and notification template updates
+- The effective snooze period is 60 seconds shorter than `SNOOZE_SECONDS` to allow for minor scheduling drift
 
-**Snooze disabled:** You will receive additional (possibly repeated) notifications every hour.  
+#### Current notify templates
 
-To enable snooze uncomment the `SNOOZE_SECONDS` variable in your `podcheck.config` and set it to the number of seconds you wish to prevent duplicate alerts.  
-Snooze is split into three categories; container updates, `podcheck.sh` self updates and notification template updates.
+- Synology **DSM**
+- Email via **mSMTP** or legacy **sSMTP**
+- **Apprise** native or **linuxserver/docker-apprise-api**
+- **ntfy**, **Gotify**, **Pushbullet**
+- **Telegram**, **Matrix**, **Pushover**
+- **Discord**, **Slack**
+- **Home Assistant**, **Synology DSM**, **generic**
 
-If an update becomes available for an item that is not snoozed, notifications will be sent and include all available updates for that item's category, even snoozed items.
+Further additions welcome via issues or PRs.
 
-The actual snooze duration will be 60 seconds less than `SNOOZE_SECONDS` to account for minor scheduling or run time issues.
+#### Notification channel configuration
 
-#### Current notify templates:
-- Synology [DSM](https://www.synology.com/en-global/dsm)
-- Email with [mSMTP](https://wiki.debian.org/msmtp) (or deprecated alternative [sSMTP](https://wiki.debian.org/sSMTP))
-- Apprise (with it's [multitude](https://github.com/caronc/apprise#supported-notifications) of notifications)
-  - both native [caronc/apprise](https://github.com/caronc/apprise) and the standalone [linuxserver/docker-apprise-api](https://github.com/linuxserver/docker-apprise-api)
-  - Read the [QuickStart](extras/apprise_quickstart.md)
-- [ntfy](https://ntfy.sh/) - HTTP-based pub-sub notifications.
-- [Gotify](https://gotify.net/) - a simple server for sending and receiving messages.
-- [Pushbullet](https://www.pushbullet.com/) - connecting different devices with cross-platform features.
-- [Telegram](https://telegram.org/) - Telegram chat API.
-- [Matrix-Synapse](https://github.com/element-hq/synapse) - [Matrix](https://matrix.org/), open, secure, decentralised communication.
-- [Pushover](https://pushover.net/) - Simple Notifications (to your phone, wearables, desktops)
-- [Discord](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) - Discord webhooks.
+All required environment variables per channel are listed as comments in `default.config`; uncomment and set them in `podcheck.config`.
 
-Further additions are welcome - suggestions or PRs!
-<sub><sup>Initiated and first contributed by [mag37](https://github.com/mag37).</sup></sub>
+Advanced toggles per channel, replace `<channel>` with the uppercase channel name in `NOTIFY_CHANNELS`:
 
-#### Notification channel configuration:
-All required environment variables for each notification channel are provided in the default.config file as comments and must be uncommented and modified for your requirements.  
-For advanced users, additional functionality is available via custom configurations and environment variables.  
-Use cases - all configured in `podcheck.config`:  
-(replace `<channel>` with the upper case name of the of the channel as listed in `NOTIFY_CHANNELS` variable, eg `TELEGRAM_SKIPSNOOZE`)
-- To bypass the snooze feature, even when enabled, add the variable `<channel>_SKIPSNOOZE` and set it to `true`.
-- To configure the channel to only send container update notifications, add the variable `<channel>_CONTAINERSONLY` and set it to `true`.
-- To send notifications even when there are no updates available, add the variable `<channel>_ALLOWEMPTY`  and set it to `true`.
-- To use another notification output format, add the variable `<channel>_OUTPUT` and set it to `csv`, `json`, or `text`. If unset or set to an invalid value, defaults to `text`.
-- To send multiple notifications using the same notification template:
-  - Strings in the `NOTIFY_CHANNELS` list are now treated as unique names and do not necessarily refer to the notification template that will be called, though they do by default.
-  - Add another notification channel to `NOTIFY_CHANNELS` in `podcheck.config`. The name can contain upper and lower case letters, numbers and underscores, but can't start with a number.
-  - Add the variable `<channel>_TEMPLATE` to `podcheck.config` where `<channel>` is the name of the channel added above and set the value to an available notification template script (`discord`, `apprise`, `gotify`, etc.)
-  - Add all other environment variables required for the chosen template to function with `<channel>` in upper case as the prefix rather than the template name.
-    - For example, if `<channel>` is `mynotification` and the template configured is `discord`, you would need to set `MYNOTIFICATION_WEBHOOK_URL`.
+- `<channel>_SKIPSNOOZE=true` to bypass snooze
+- `<channel>_CONTAINERSONLY=true` to send only container updates
+- `<channel>_ALLOWEMPTY=true` to always send notifications
+- `<channel>_OUTPUT=text|json|csv` to choose output format
+- `<channel>_TEMPLATE=<template>` to reuse a template for multiple channels, then set required vars with the `<channel>` prefix
 
-### Release notes addon
-There's a function to use a lookup-file to add release note URL's to the notification message. 
+## Release notes addon
 
-Copy the notify_templates/`urls.list` file to the script directory, it will be used automatically if it's there.  
-Modify it as necessary, the names of interest in the left column needs to match your container names.  
-To also list the URL's in the CLI output (choose containers list) use the `-I` option or variable config.  
-For Markdown formatting also add the `-M` option. (**this requires the template to be compatible - see gotify for example**)  
+Provide a lookup file to include release note URLs in notifications:
 
-The output of the notification will look something like this:
+- Copy `notify_templates/urls.list` next to `podcheck.sh` and edit it; left column matches container names
+- Show URLs in CLI output with `-I`
+- Markdown formatting with `-M` if the template supports it
+
+Example output:
+
 ```
 Containers on hostname with updates available:
 apprise-api  -> https://github.com/linuxserver/docker-apprise-api/releases
-homer  ->  https://github.com/bastienwirtz/homer/releases
-nginx  -> https://github.com/docker-library/official-images/blob/master/library/nginx
-...
+homer        -> https://github.com/bastienwirtz/homer/releases
+nginx        -> https://github.com/docker-library/official-images/blob/master/library/nginx
 ```
-The `urls.list` file is just an example and I'd gladly see that people contribute back when they add their preferred URLs to their lists.
 
-## Asyncronous update checks with **xargs**; `-x N` option. (default=1)
-Pass `-x N` where N is number of subprocesses allowed, experiment in your environment to find a suitable max! 
+## Asynchronous update checks with **xargs**; `-x N` option (default=1)
 
-Change the default value by editing the `MaxAsync=N` variable in `podcheck.sh`. To disable the subprocess function set `MaxAsync=0`.
+Pass `-x N` where `N` is the number of subprocesses. Experiment to find a suitable maximum.  
+Set `MaxAsync=0` in `podcheck.sh` to disable subprocess usage entirely.
 
-## Extra plugins and tools:
+## Extra plugins and tools
 
-### Using podcheck.sh with systemd units (Quadlet)
-Podcheck automatically detects containers managed by systemd units and will restart them appropriately using `systemctl restart`.
+### Using `podcheck.sh` with systemd units (Quadlet)
+
+podcheck detects containers managed by systemd units and restarts them via `systemctl restart`.
 
 ### Prometheus and node_exporter
-Podcheck can be used together with [Prometheus](https://github.com/prometheus/prometheus) and [node_exporter](https://github.com/prometheus/node_exporter) to export metrics via the file collector, scheduled with cron or likely.
-This is done with the `-c` option, like this:
+
+Export metrics via the node_exporter textfile collector:
+
 ```
 podcheck.sh -c /path/to/exporter/directory
 ```
 
-See the [README.md](./addons/prometheus/README.md) for more detailed information on how to set it up!  
-<sub><sup>Contributed by [tdralle](https://github.com/tdralle).</sup></sub>  
+See the [addons/prometheus/README.md](./addons/prometheus/README.md) for detailed setup.
 
 ## Labels
-Optionally add labels to compose-files. Currently these are the usable labels:
+
+Add optional labels to compose files:
+
+```yaml
+labels:
+  sudo-kraken.podcheck.update: true
+  sudo-kraken.podcheck.only-specific-container: true
+  sudo-kraken.podcheck.restart-stack: true
 ```
-    labels:
-      sudo-kraken.podcheck.update: true
-      sudo-kraken.podcheck.only-specific-container: true
-      sudo-kraken.podcheck.restart-stack: true
-```
-- `sudo-kraken.podcheck.update: true` will when used with the `-l` option only update containers with this label and skip the rest. Will still list updates as usual.
-- `sudo-kraken.podcheck.only-specific-container: true` works instead of the `-F` option, specifying the updated container when doing compose up, like `podman compose up -d homer`.
-- `sudo-kraken.podcheck.restart-stack: true` works instead of the `-f` option, forcing stop+restart on the whole compose-stack (Caution: Will restart on every updated container within stack).
+
+- `sudo-kraken.podcheck.update: true` combined with `-l` updates only labelled containers
+- `sudo-kraken.podcheck.only-specific-container: true` behaves like `-F`
+- `sudo-kraken.podcheck.restart-stack: true` behaves like `-f` and restarts the entire stack
 
 ## Workaround for non **amd64** / **arm64**
-`regctl` provides binaries for amd64/arm64, to use on other architecture you could try this workaround.
-Run regctl in a container wrapped in a shell script. Copied from [regclient/docs/install.md](https://github.com/regclient/regclient/blob/main/docs/install.md):
+
+If `regctl` is not available for your architecture, wrap the container image:
 
 ```sh
-cat >regctl <<EOF
+cat >regctl <<'EOF'
 #!/bin/sh
 opts=""
-case "\$*" in
+case "$*" in
   "registry login"*) opts="-t";;
 esac
-podman container run \$opts -i --rm --net host \\
-  -u "\$(id -u):\$(id -g)" -e HOME -v \$HOME:\$HOME \\
-  -v /etc/docker/certs.d:/etc/docker/certs.d:ro \\
-  ghcr.io/regclient/regctl:latest "\$@"
+podman container run $opts -i --rm --net host \
+  -u "$(id -u):$(id -g)" -e HOME -v $HOME:$HOME \
+  -v /etc/docker/certs.d:/etc/docker/certs.d:ro \
+  ghcr.io/regclient/regctl:latest "$@"
 EOF
 chmod 755 regctl
 ```
-Test it with `./regctl --help` and then either add the file to the same path as *podcheck.sh* or in your path (eg. `~/.local/bin/regctl`).
 
-## Function to auth with docker hub before running
-**Example** - Change names, paths, and remove cat+password flag if you rather get prompted:
+Place `regctl` alongside `podcheck.sh` or somewhere on your `PATH`.
+
+## Function to auth with Docker Hub before running
+
+Example wrapper:
+
 ```sh
 function pchk {
   cat ~/pwd.txt | podman login --username YourUser --password-stdin docker.io
@@ -354,29 +412,44 @@ function pchk {
 }
 ```
 
-## `-r flag` disclaimer and warning
-**Wont auto-update the containers, only their images. (compose is recommended)**  
-`podman run` dont support using new images just by restarting a container.  
-Containers need to be manually stopped, removed and created again to run on the new image.  
-Using the `-r` option together with eg. `-i` and `-n` to just check for updates and send notifications and not update is safe though!
+## `-r` flag disclaimer and warning
+
+- Will **not** auto-update `podman run` containers, only their images  
+- To use a new image with `podman run`, you must recreate the container  
+- Safe to combine `-r` with `-i` and `-n` for notify-only checks
 
 ## Known issues
-- No detailed error feedback (just skip + list what's skipped).
-- Not respecting `--profile` options when re-creating the container.
-- Not working well with containers created by **Portainer**.
+
+- No detailed error feedback for some edge cases
+- Not respecting `--profile` when recreating containers
+- Not working well with containers created by Portainer
 
 ## Debugging
-If you hit issues, you could check the output of the `extras/errorCheck.sh` script for clues.
-Another option is to run the main script with debugging in a subshell `bash -x podcheck.sh` - if there's a particular container/image that's causing issues you can filter for just that through `bash -x podcheck.sh nginx`.
 
-## License
-podcheck is created and released under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
+- Run `extras/errorCheck.sh` for quick diagnostics
+- Or run with bash tracing: `bash -x podcheck.sh`, optionally filter a single container: `bash -x podcheck.sh nginx`
 
-___
+## The story behind podcheck
 
-### The Story Behind Podcheck
 Podcheck was created to bring the convenience of automated container updates to the Podman ecosystem. As a user of [Dockcheck](https://github.com/mag37/dockcheck) for Docker, the need for a similar tool for Podman became apparent. Podcheck aims to provide the same ease of use and automation, tailored for Podman users.
 
-## Acknowledgments
-Podcheck is inspired by the original [Dockcheck](https://github.com/mag37/dockcheck) script. Without Dockcheck, there wouldn't have been a Podcheck. Many thanks to mag37 and all the contributors to Dockcheck for their work and inspiration.
+## Acknowledgements
 
+Podcheck is inspired by the original [Dockcheck](https://github.com/mag37/dockcheck) script. Without Dockcheck, there would not have been a Podcheck. Many thanks to mag37 and all contributors to Dockcheck for their work and inspiration.
+
+## Licence
+
+podcheck is created and released under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) licence.
+
+## Security
+
+If you discover a security issue, please review and follow the guidance in [SECURITY.md](SECURITY.md), or open a private security-focused issue with minimal details and request a secure contact channel.
+
+## Contributing
+
+Feel free to open issues or submit pull requests if you have suggestions or improvements.  
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Support
+
+Open an [issue](/../../issues) with as much detail as possible, including your environment, podman version and any relevant podcheck output.
