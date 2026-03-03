@@ -11,16 +11,14 @@ fi
 # Prepare the Matrix message
 if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
   # Escape special characters for JSON
-  matrix_message="${NOTIFICATION_MESSAGE}"
-  matrix_message="${matrix_message//\"/\\\"}"
-  matrix_message="${matrix_message//$'\n'/\\n}"
-  
+  matrix_message=$(printf '%s' "${NOTIFICATION_MESSAGE}" | jq -Rs .)
+
   # Create Matrix message body
-  msg_body="{\"msgtype\":\"m.text\",\"body\":\"${matrix_message}\"}"
-  
+  msg_body="{\"msgtype\":\"m.text\",\"body\":${matrix_message}}"
+
   # Build Matrix URL
   matrix_url="${MATRIX_SERVER_URL}/_matrix/client/r0/rooms/${MATRIX_ROOM_ID}/send/m.room.message?access_token=${MATRIX_ACCESS_TOKEN}"
-  
+
   # Send to Matrix
   if curl -s -o /dev/null --fail -X POST \
           "${matrix_url}" \
