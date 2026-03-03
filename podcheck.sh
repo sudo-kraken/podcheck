@@ -80,20 +80,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if there's a new release of the script
-LatestRelease="$(curl -s -r 0-100 "$RawUrl" | sed -n "/VERSION/s/VERSION=//p" | tr -d '"')"
-LatestChanges="$(curl -s -r 0-200 "$RawUrl" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-
-# After getting LatestRelease
-if [[ -n "$LatestRelease" && "$LatestRelease" != "$VERSION" ]]; then
-    printf "\nNew version available: %s\nCurrent version: %s\nChanges: %s\n" \
-        "$LatestRelease" "$VERSION" "$LatestChanges"
-    read -r -p "Do you want to update? [y/N] " update
-    if [[ "$update" =~ [yY] ]]; then
-        self_update
-    fi
-fi
-
 Help() {
   echo "Syntax:     podcheck.sh [OPTION] [comma separated names to include]"
   echo "Example:    podcheck.sh -y -x 10 -d 10 -e nextcloud,heimdall"
