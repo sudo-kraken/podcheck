@@ -66,7 +66,7 @@ self_update() {
 cleanup() {
     # Temporarily disable failglob for cleanup
     shopt -u failglob
-    
+
     # Remove temporary files if any
     rm -f /tmp/podcheck-* 2>/dev/null
     # Remove backup file if update failed
@@ -74,7 +74,7 @@ cleanup() {
     # Clean up any temporary downloaded binaries
     [ -f "/tmp/regctl.tmp" ] && rm -f "/tmp/regctl.tmp"
     [ -f "/tmp/jq.tmp" ] && rm -f "/tmp/jq.tmp"
-    
+
     # Re-enable failglob
     shopt -s failglob
 }
@@ -100,6 +100,8 @@ Help() {
   echo
   echo "Options:"
   echo "-a|y   Automatic updates, without interaction."
+  echo "-b N   Enable image backups and sets number of days to keep from pruning."
+  echo "-B     List currently backed up images, then exit."
   echo "-c D   Exports metrics as prom file for the prometheus node_exporter. Provide the collector textfile directory."
   echo "-d N   Only update to new images that are N+ days old. Lists too recent with +prefix and age. 2xSlower."
   echo "-e X   Exclude containers, separated by comma."
@@ -114,6 +116,7 @@ Help() {
   echo "-n     No updates; only checking availability without interaction."
   echo "-p     Auto-prune dangling images after update."
   echo "-r     Allow checking for updates/updating images for podman run containers. Won't update the container."
+  echo "-R     Skip container recreation after pulling images."
   echo "-s     Include stopped containers in the check. (Logic: podman ps -a)."
   echo "-t     Set a timeout (in seconds) per container for registry checkups, 10 is default."
   echo "-u     Allow automatic self updates - caution as this will pull new code and autorun it."
@@ -152,6 +155,8 @@ Exclude=${Exclude:-}
 DaysOld=${DaysOld:-}
 OnlySpecific=${OnlySpecific:-false}
 SpecificContainer=${SpecificContainer:-""}
+BackupForDays=${BackupForDays:-}
+SkipRecreation=${SkipRecreation:-false}
 Excludes=()
 GotUpdates=()
 NoUpdates=()
@@ -163,14 +168,19 @@ jqbin=""
 
 set -euo pipefail
 
-while getopts "ayfFhiIlmMnprsuvc:e:d:t:x:" options; do
+while getopts "ayb:Bc:d:e:fFhiIlmMnprRst:uvx:" options; do
   case "${options}" in
     a|y) AutoMode=true ;;
+    b)   BackupForDays="${OPTARG}" ;;
+    B)   printf "📦 Currently backed-up Podcheck images:\n"
+         podman images --filter "reference=podcheck/*" --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
+         exit 0 ;;
     c)   CollectorTextFileDirectory="${OPTARG}" ;;
-    d)   DaysOld=${OPTARG} ;;
-    e)   Exclude=${OPTARG} ;;
+    d)   DaysOld="${OPTARG}" ;;
+    e)   Exclude="${OPTARG}" ;;
     f)   ForceRestartStacks=true ;;
     F)   OnlySpecific=true ;;
+    h)   Help; exit 0 ;;
     i)   Notify=true ;;
     I)   PrintReleaseURL=true ;;
     l)   OnlyLabel=true ;;
@@ -179,12 +189,13 @@ while getopts "ayfFhiIlmMnprsuvc:e:d:t:x:" options; do
     n)   DontUpdate=true; AutoMode=true;;
     p)   AutoPrune=true ;;
     r)   DRunUp=true ;;
+    R)   SkipRecreation=true ;;
     s)   Stopped="-a" ;;
     t)   Timeout="${OPTARG}" ;;
     u)   AutoSelfUpdate=true ;;
     v)   printf "%s\n" "$VERSION"; exit 0 ;;
-    x)   MaxAsync=${OPTARG} ;;
-    h|*) Help; exit 2 ;;
+    x)   MaxAsync="${OPTARG}" ;;
+    *)   Help; exit 2 ;;
   esac
 done
 shift "$((OPTIND-1))"
@@ -279,11 +290,11 @@ releasenotes() {
         Updates+=("$update  ->  $url"); found=true;
       fi
     done < "${ScriptWorkDir}/urls.list"
-    if [[ "$found" == false ]] && [[ "$PrintMarkdownURL" == true ]]; then 
+    if [[ "$found" == false ]] && [[ "$PrintMarkdownURL" == true ]]; then
       Updates+=("- $update  ->  url missing");
-    elif [[ "$found" == false ]]; then 
+    elif [[ "$found" == false ]]; then
       Updates+=("$update  ->  url missing");
-    else 
+    else
       continue;
     fi
   done
@@ -318,8 +329,9 @@ progress_bar() {
 datecheck() {
   ImageDate=$("$regbin" -v error image inspect "$RepoUrl" --format='{{.Created}}' | cut -d" " -f1)
   ImageEpoch=$(date -d "$ImageDate" +%s 2>/dev/null) || ImageEpoch=$(date -f "%Y-%m-%d" -j "$ImageDate" +%s)
-  ImageAge=$(( ( $(date +%s) - ImageEpoch )/86400 ))
-  if [[ "$ImageAge" -gt "$DaysOld" ]]; then
+  # Force base-10 calculation to prevent 'value too great' error for leading zeroes
+  ImageAge=$(( ( 10#$(date +%s) - 10#${ImageEpoch} )/86400 ))
+  if [[ "$ImageAge" -gt "$(( 10#$DaysOld ))" ]]; then
     return 0
   else
     return 1
@@ -387,9 +399,9 @@ binary_downloader() {
   GetUrl="${BinaryUrl/TEMP/"$architecture"}"
   if command -v curl &>/dev/null; then
     curl ${CurlArgs} -L "$GetUrl" > "$ScriptWorkDir/$BinaryName" || { printf "ERROR: Failed to curl binary dependency. Rerun the script to retry.\n"; exit 1; }
-  elif command -v wget &>/dev/null; then 
+  elif command -v wget &>/dev/null; then
     wget --waitretry=1 --timeout=15 -t 10 "$GetUrl" -O "$ScriptWorkDir/$BinaryName";
-  else 
+  else
     printf "\n%bcurl/wget not available - get %s manually from the repo link, exiting.%b" "$c_red" "$BinaryName" "$c_reset"; exit 1;
   fi
   [[ -f "$ScriptWorkDir/$BinaryName" ]] && chmod +x "$ScriptWorkDir/$BinaryName"
@@ -408,9 +420,9 @@ distro_checker() {
     [[ "$isRoot" == true ]] && PkgInstaller="dnf install" || PkgInstaller="sudo dnf install"
   elif [[ -f /etc/SuSE-release ]]; then
     [[ "$isRoot" == true ]] && PkgInstaller="zypper install" || PkgInstaller="sudo zypper install"
-  elif [[ $(uname -s) == "Darwin" ]]; then 
+  elif [[ $(uname -s) == "Darwin" ]]; then
     PkgInstaller="brew install"
-  else 
+  else
     PkgInstaller="ERROR"; printf "\n%bNo distribution could be determined%b, falling back to static binary.\n" "$c_yellow" "$c_reset"
   fi
 }
@@ -420,9 +432,9 @@ dependency_check() {
   AppName="$1"
   AppVar="$2"
   AppUrl="$3"
-  if command -v "$AppName" &>/dev/null; then 
+  if command -v "$AppName" &>/dev/null; then
     export "$AppVar"="$AppName";
-  elif [[ -f "$ScriptWorkDir/$AppName" ]]; then 
+  elif [[ -f "$ScriptWorkDir/$AppName" ]]; then
     export "$AppVar"="$ScriptWorkDir/$AppName";
   else
     printf "\nRequired dependency %b'%s'%b missing, do you want to install it?\n" "$c_teal" "$AppName" "$c_reset"
@@ -445,7 +457,7 @@ dependency_check() {
           binary_downloader "$AppName" "$AppUrl"
           [[ -f "$ScriptWorkDir/$AppName" ]] && { export "$AppVar"="$ScriptWorkDir/$1" && printf "\n%b%s downloaded.%b\n" "$c_green" "$AppName" "$c_reset"; }
       fi
-    else 
+    else
       printf "\n%bDependency missing, exiting.%b\n" "$c_red" "$c_reset"; exit 1;
     fi
   fi
@@ -466,7 +478,7 @@ if [[ "$LatestRelease" != "undefined" ]]; then
     if [[ "$AutoMode" == false ]]; then
       read -r -p "Would you like to update? y/[n]: " SelfUpdate
       [[ "$SelfUpdate" =~ [yY] ]] && self_update
-    elif [[ "$AutoMode" == true ]] && [[ "$AutoSelfUpdate" == true ]]; then 
+    elif [[ "$AutoMode" == true ]] && [[ "$AutoSelfUpdate" == true ]]; then
       self_update;
     else
       [[ "$Notify" == true ]] && { exec_if_exists_or_fail podcheck_notification "$VERSION" "$LatestRelease" "$LatestChanges" || printf "Could not source notification function.\n"; }
@@ -481,9 +493,9 @@ fi
 
 # Check podman compose binary
 podman info &>/dev/null || { printf "\n%bYour current user does not have permissions to the podman socket - may require root / podman group. Exiting.%b\n" "$c_red" "$c_reset"; exit 1; }
-if podman compose version &>/dev/null; then 
+if podman compose version &>/dev/null; then
   PodmanBin="podman compose" ;
-elif podman-compose version &>/dev/null; then 
+elif podman-compose version &>/dev/null; then
   PodmanBin="podman-compose" ;
 elif podman -v &>/dev/null; then
   printf "%s\n" "No podman compose binary available, using plain podman (Not recommended!)"
@@ -520,7 +532,7 @@ if [[ $t_out ]]; then
   t_out=$(realpath "$t_out" 2>/dev/null || readlink -f "$t_out")
   if [[ $t_out =~ "busybox" ]]; then
     t_out="timeout ${Timeout}"
-  else 
+  else
     t_out="timeout --foreground ${Timeout}"
   fi
 else
@@ -624,10 +636,10 @@ if [[ -n ${GotErrors[*]:-} ]]; then
 fi
 if [[ -n ${GotUpdates[*]:-} ]]; then
   printf "\n%bContainers with updates available:%b\n" "$c_yellow" "$c_reset"
-  if [[ -s "$ScriptWorkDir/urls.list" ]] && [[ "$PrintReleaseURL" == true ]]; then 
-    releasenotes; 
-  else 
-    Updates=("${GotUpdates[@]}"); 
+  if [[ -s "$ScriptWorkDir/urls.list" ]] && [[ "$PrintReleaseURL" == true ]]; then
+    releasenotes;
+  else
+    Updates=("${GotUpdates[@]}");
   fi
   [[ "$AutoMode" == false ]] && list_options || printf "%s\n" "${Updates[@]}"
   [[ "$Notify" == true ]] && { exec_if_exists_or_fail send_notification "${GotUpdates[@]}" || printf "\nCould not source notification function.\n"; }
@@ -662,10 +674,26 @@ if [[ -n "${GotUpdates:-}" ]]; then
       # Checking if Label Only -option is set, and if container got the label
       [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != true ]] && { echo "No update label, skipping."; continue; } }
 
-      # Checking if compose-values are empty - hence started with podman run
+# Check container state to prevent starting stopped containers (-s flag fix)
+      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null)
+
+      # Create backup if BackupForDays is enabled
+      if [[ -n "$BackupForDays" ]] && [[ "$BackupForDays" -gt 0 ]]; then
+        CurrentImgId=$(podman inspect "$i" --format='{{.Image}}' 2>/dev/null)
+        if [[ -n "$CurrentImgId" ]]; then
+          # Extract Repo and Tag from the Current Image URL safely
+          ImgRepo=$(echo "$ContImage" | awk -F':' '{print $1}' | awk -F'/' '{print $NF}')
+          ImgTag=$(echo "$ContImage" | awk -F':' '{if (NF>1) print $NF; else print "latest"}')
+          BackupName="podcheck/${ImgRepo}:$(date +%Y-%m-%d_%H%M)_${ImgTag}"
+          printf "\n%b💾 Backing up current image to: %s%b\n" "$c_blue" "$BackupName" "$c_reset"
+          podman tag "$CurrentImgId" "$BackupName" || true
+        fi
+      fi
+
       if [[ -z "$ContPath" ]]; then
         # Quadlet detection: check for PODMAN_SYSTEMD_UNIT label first
         unit=$(podman inspect "$i" --format '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
+
         if [ -n "$unit" ]; then
           printf "\n%bDetected Quadlet-managed container: %s (unit: %s)%b\n\n" \
             "$c_green" "$i" "$unit" "$c_reset"
@@ -676,6 +704,16 @@ if [[ -n "${GotUpdates:-}" ]]; then
             printf "\n%bFailed to pull image for %s%b\n\n" "$c_red" "$i" "$c_reset"
             continue
           fi
+          if [[ "$SkipRecreation" == true ]]; then
+            printf "\n%b⏭️ Skipping unit restart (-R flag passed)%b\n\n" "$c_yellow" "$c_reset"
+            continue
+          fi
+
+          if [[ "$ContState" == "exited" ]] || [[ "$ContState" == "stopped" ]]; then
+            printf "\n%bℹ️ Container was stopped. Pulled new image, but skipping restart to preserve state.%b\n\n" "$c_yellow" "$c_reset"
+            continue
+          fi
+
           printf "%bAttempting to restart unit...%b\n\n" "$c_teal" "$c_reset"
           if timeout 60 systemctl --user restart "$unit"; then
             printf "\n%bQuadlet container %s updated and restarted (user scope)%b\n\n" \
@@ -706,6 +744,7 @@ if [[ -n "${GotUpdates:-}" ]]; then
       # Extract labels and metadata
       ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
       ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
+      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null) # <-- We just added this line back in!
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
       [[ "$ContPath" == "null" ]] && ContPath=""
       ContConfigFile=$($jqbin -r '."com.docker.compose.project.config_files"' <<< "$ContLabels")
@@ -739,27 +778,47 @@ if [[ -n "${GotUpdates:-}" ]]; then
       fi
       # Check if the container got an environment file set and reformat it
       ContEnvs=""
-      if [[ -n "$ContEnv" ]]; then 
-        ContEnvs=$(for env in ${ContEnv//,/ }; do printf -- "--env-file %s " "$env"; done); 
+      if [[ -n "$ContEnv" ]]; then
+        ContEnvs=$(for env in ${ContEnv//,/ }; do printf -- "--env-file %s " "$env"; done);
       fi
       # Set variable when compose up should only target the specific container, not the stack
-      if [[ $OnlySpecific == true ]] || [[ $ContOnlySpecific == true ]]; then 
-        SpecificContainer="$ContName"; 
+      if [[ $OnlySpecific == true ]] || [[ $ContOnlySpecific == true ]]; then
+        SpecificContainer="$ContName";
+      fi
+
+if [[ "$SkipRecreation" == true ]]; then
+        printf "\n%b⏭️ Skipping compose recreation (-R flag passed)%b\n" "$c_yellow" "$c_reset"
+        continue
+      fi
+
+      # For compose, if container was stopped, bring it back up without starting it
+      if [[ "$ContState" == "exited" ]] || [[ "$ContState" == "stopped" ]]; then
+        printf "\n%bℹ️ Container was stopped. Recreating but not starting to preserve state.%b\n" "$c_yellow" "$c_reset"
+        ComposeUpFlags="--no-start"
+      else
+        ComposeUpFlags="-d"
       fi
 
       # Check if the whole stack should be restarted
       if [[ "$ContRestartStack" == true ]] || [[ "$ForceRestartStacks" == true ]]; then
-        ${PodmanBin} ${CompleteConfs} stop; ${PodmanBin} ${CompleteConfs} ${ContEnvs} up -d || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
+        ${PodmanBin} ${CompleteConfs} stop; ${PodmanBin} ${CompleteConfs} ${ContEnvs} up ${ComposeUpFlags} || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
       else
-        ${PodmanBin} ${CompleteConfs} ${ContEnvs} up -d ${SpecificContainer} || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
+        ${PodmanBin} ${CompleteConfs} ${ContEnvs} up ${ComposeUpFlags} ${SpecificContainer} || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
       fi
     done
-    if [[ "$AutoPrune" == false ]] && [[ "$AutoMode" == false ]]; then 
-      printf "\n"; read -rep "Would you like to prune dangling images? y/[n]: " AutoPrune; 
+    if [[ "$AutoPrune" == false ]] && [[ "$AutoMode" == false ]]; then
+      printf "\n"; read -rep "Would you like to prune dangling images? y/[n]: " AutoPrune;
     fi
-    if [[ "$AutoPrune" == true ]] || [[ "$AutoPrune" =~ [yY] ]]; then 
-      printf "\nAuto pruning.."; podman image prune -f; 
+    if [[ "$AutoPrune" == true ]] || [[ "$AutoPrune" =~ [yY] ]]; then
+      printf "\nAuto pruning.."; podman image prune -f;
     fi
+
+    if [[ -n "$BackupForDays" ]] && [[ "$BackupForDays" -gt 0 ]]; then
+      printf "\n%b🧹 Pruning backups older than %s days...%b\n" "$c_blue" "$BackupForDays" "$c_reset"
+      Hours=$(( 10#$BackupForDays * 24 ))
+      podman image prune -a --force --filter "label=!" --filter "until=${Hours}h" | grep -v "^$" || true
+    fi
+
     printf "\n%bAll done!%b\n" "$c_green" "$c_reset"
   else
     printf "\nNo updates installed, exiting.\n"

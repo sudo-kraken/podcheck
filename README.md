@@ -38,6 +38,7 @@ _A CLI tool to automate Podman image updates or notify when updates are availabl
   - [Notification channel configuration](#notification-channel-configuration)
 - [Release notes addon](#release-notes-addon)
 - [Asynchronous update checks with xargs](#asynchronous-update-checks-with-xargs--x-n-option-default1)
+- [Image Backups](#image-backups--b-n)
 - [Extra plugins and tools](#extra-plugins-and-tools)
   - [Using podchecksh with systemd units Quadlet](#using-podchecksh-with-systemd-units-quadlet)
   - [Prometheus and node_exporter](#prometheus-and-node_exporter)
@@ -67,6 +68,7 @@ podcheck automates checking and updating Podman images and compose stacks, or no
 - Prometheus metrics export for node_exporter
 - Self-update capability and optional async processing
 - Rich notifications with multiple channels and snooze support
+- Image Backups for easy rollbacks if an update breaks a container
 
 ___
 ## BREAKING CHANGES IN v0.7.1
@@ -92,6 +94,15 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.2.0**: ✨ **New Features & Upstream Sync**
+    - **Added**: `-b N` option to automatically tag and backup images before pulling new versions, auto-pruning backups older than `N` days.
+    - **Added**: `-B` option to list all currently backed-up images.
+    - **Added**: `-R` option to pull new images but skip container recreation (useful for CI/CD pipelines).
+    - **Added**: Bark iOS push notification template.
+    - **Fixed**: Base-10 math bug that caused crashes on dates with leading zeroes.
+    - **Fixed**: Logic flaw where stopped containers were accidentally restarted after being updated (`-s` flag).
+    - **Fixed**: Matrix notification payloads are now fully sanitized using `jq` to prevent API formatting errors.
+    - **Fixed**: Improved hostname fallback logic for notifications.
 - **v0.7.3**: 🐛 **Bug Fixes & CI Improvements**
     - **Fixed**: Self-update function ordering issue causing "command not found" error
     - **Fixed**: Moved `self_update()` and `self_update_curl()` functions before they are called
@@ -123,15 +134,15 @@ ___
     - Added helper functions: `releasenotes()`, `list_options()`, `progress_bar()`
     - **Fixed Quadlet container detection**: Restored v0.6.0 behavior of checking ALL containers for updates, including systemd-managed Quadlet containers
 - **v0.6.0**:
-    - **Grafana & Prometheus Integration:**  
+    - **Grafana & Prometheus Integration:**
       - Added a detailed Prometheus metrics exporter that now reports not only the number of containers with updates, no-updates, and errors, but also the total number of containers checked, the duration of the update check, and the epoch timestamp of the last check.
       - Enhanced documentation with instructions on integrating these metrics with Grafana for visual monitoring.
-    - **Improved Error Handling & Code Refactoring:**  
+    - **Improved Error Handling & Code Refactoring:**
       - Introduced `set -euo pipefail` and local variable scoping within functions to improve reliability and prevent unexpected behaviour.
       - Standardised container name handling and refined the Quadlet detection logic.
-    - **Self-Update Enhancements:**  
+    - **Self-Update Enhancements:**
       - Updated the self-update mechanism to support both Git-based and HTTP-based updates, with an automatic restart that preserves the original arguments.
-    - **Miscellaneous Improvements:**  
+    - **Miscellaneous Improvements:**
       - Enhanced dependency installer to support both package manager and static binary installations for `jq` and `regctl`.
       - General code refactoring across the project for better readability and maintainability.
 
@@ -145,6 +156,8 @@ Example:    podcheck.sh -y -x 10 -d 10 -e nextcloud,heimdall
 
 Options:
 -a|y   Automatic updates, without interaction.
+-b N   Enable image backups and sets number of days to keep from pruning.
+-B     List currently backed up images, then exit.
 -c D   Exports metrics as prom file for the prometheus node_exporter. Provide the collector textfile directory.
 -d N   Only update to new images that are N+ days old. Lists too recent with +prefix and age. 2xSlower.
 -e X   Exclude containers, separated by comma.
@@ -159,6 +172,7 @@ Options:
 -n     No updates, only checking availability.
 -p     Auto-Prune dangling images after update.
 -r     Allow checking for updates/updating images for podman run containers. Won't update the container.
+-R     Skip container recreation after pulling images.
 -s     Include stopped containers in the check. (Logic: podman ps -a).
 -t N   Set a timeout (in seconds) per container for registry checkups, 10 is default.
 -u     Allow automatic self updates - caution as this will pull new code and autorun it.
@@ -183,19 +197,19 @@ Choose what containers to update:
 Enter number(s) separated by comma, [a] for all - [q] to quit:
 ```
 
-Then it proceeds to run `podman pull` and `podman compose up -d`, or restarts systemd units for every container with updates.  
+Then it proceeds to run `podman pull` and `podman compose up -d`, or restarts systemd units for every container with updates.
 After the updates are complete, you will be prompted if you would like to prune dangling images.
 
 ___
 ## Dependencies
 
 - Running **Podman** and **compose**, either standalone or plugin
-- **Bash** 4.3 or newer  
+- **Bash** 4.3 or newer
   - POSIX `xargs` for async, usually present via `findutils`
-- **jq** https://github.com/jqlang/jq  
+- **jq** https://github.com/jqlang/jq
   - You will be prompted to install via package manager or download a static binary
-- **regclient/regctl** https://github.com/regclient/regclient  
-  - You will be prompted to download `regctl` if not present in `PATH` or `PWD`  
+- **regclient/regctl** https://github.com/regclient/regclient
+  - You will be prompted to download `regctl` if not present in `PATH` or `PWD`
   - `regctl` provides `amd64` and `arm64` binaries; see the workaround below for other architectures
 
 ## Install instructions
@@ -268,7 +282,7 @@ alias pc='podcheck.sh -p -x 10 -t 3'
 
 ## Notifications
 
-Triggered with the `-i` flag. Sends a list of containers with updates and a note when `podcheck.sh` itself has an update.  
+Triggered with the `-i` flag. Sends a list of containers with updates and a note when `podcheck.sh` itself has an update.
 `notify_templates/notify_v2.sh` is the default notification wrapper. If `notify.sh` is present and configured, it will override.
 
 Example cron job running non-interactive at 10 o’clock, excluding one container and sending notifications:
@@ -290,9 +304,10 @@ PUSHOVER_APPTOKEN="your_app_token"
 PUSHOVER_USERKEY="your_user_key"
 TELEGRAM_BOTTOKEN="bot_token"
 TELEGRAM_CHATID="chat_id"
+BARK_KEY="your_device_key"
 ```
 
-It is recommended to configure via `podcheck.config` and not edit `notify_templates/notify_*.sh` directly.  
+It is recommended to configure via `podcheck.config` and not edit `notify_templates/notify_*.sh` directly.
 To customise the wrapper, rename a modified `notify_v2.sh` to `notify.sh` in the podcheck root directory.
 
 #### Snooze feature
@@ -308,7 +323,7 @@ Receive scheduled notifications only if they are new since the last notification
 - Synology **DSM**
 - Email via **mSMTP** or legacy **sSMTP**
 - **Apprise** native or **linuxserver/docker-apprise-api**
-- **ntfy**, **Gotify**, **Pushbullet**
+- **ntfy**, **Gotify**, **Pushbullet**, **Bark**
 - **Telegram**, **Matrix**, **Pushover**
 - **Discord**, **Slack**
 - **Home Assistant**, **Synology DSM**, **generic**
@@ -346,8 +361,22 @@ nginx        -> https://github.com/docker-library/official-images/blob/master/li
 
 ## Asynchronous update checks with **xargs**; `-x N` option (default=1)
 
-Pass `-x N` where `N` is the number of subprocesses. Experiment to find a suitable maximum.  
+Pass `-x N` where `N` is the number of subprocesses. Experiment to find a suitable maximum.
 Set `MaxAsync=0` in `podcheck.sh` to disable subprocess usage entirely.
+
+## Image Backups; `-b N`
+
+When the option `BackupForDays` is set (or `-b N` is passed), podcheck will store the current image as a backup, retagged with a different name, before pulling the new update. This allows for an easy rollback if an update breaks your container.
+
+Example retag: `podcheck/homer:2026-03-03_1132_latest`
+
+**To restore:**
+1. Stop the container.
+2. Delete the broken new image: `podman rmi b4bz/homer:latest`
+3. Retag the backup: `podman tag podcheck/homer:<date>_latest b4bz/homer:latest`
+4. Start the container again.
+
+Backups older than `N` days will be pruned automatically. List currently backed-up images with `-B`.
 
 ## Extra plugins and tools
 
@@ -414,8 +443,8 @@ function pchk {
 
 ## `-r` flag disclaimer and warning
 
-- Will **not** auto-update `podman run` containers, only their images  
-- To use a new image with `podman run`, you must recreate the container  
+- Will **not** auto-update `podman run` containers, only their images
+- To use a new image with `podman run`, you must recreate the container
 - Safe to combine `-r` with `-i` and `-n` for notify-only checks
 
 ## Known issues
@@ -447,7 +476,7 @@ If you discover a security issue, please review and follow the guidance in [SECU
 
 ## Contributing
 
-Feel free to open issues or submit pull requests if you have suggestions or improvements.  
+Feel free to open issues or submit pull requests if you have suggestions or improvements.
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Support
