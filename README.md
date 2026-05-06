@@ -94,6 +94,9 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.2.1**: 🐛 **Bug Fixes**
+    - **Fixed**: Handle containers without `PODMAN_SYSTEMD_UNIT` label and detect legacy `podman generate systemd` units.
+    - **Fixed**: Removed duplicate update checker that caused forced prompts.
 - **v1.2.0**: ✨ **New Features & Upstream Sync**
     - **Added**: `-b N` option to automatically tag and backup images before pulling new versions, auto-pruning backups older than `N` days.
     - **Added**: `-B` option to list all currently backed-up images.

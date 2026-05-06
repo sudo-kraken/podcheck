@@ -3,7 +3,7 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.2.0"
+VERSION="v1.2.1"
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
@@ -677,12 +677,43 @@ if [[ -n "${GotUpdates:-}" ]]; then
       fi
 
       if [[ -z "$ContPath" ]]; then
-        # Quadlet detection: check for PODMAN_SYSTEMD_UNIT label first
+        # Determine systemd scope from EUID directly. Don't rely on $isRoot here:
+        # distro_checker() only runs when a missing tool needs installing, so
+        # $isRoot is unset under `set -u` otherwise.
+        if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+          sctl=(systemctl)
+          scope_label="system"
+        else
+          sctl=(systemctl --user)
+          scope_label="user"
+        fi
+
+        # systemd detection: check for PODMAN_SYSTEMD_UNIT label first (Quadlet)
         unit=$(podman inspect "$i" --format '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
+        # Go templates emit "<no value>" when a key is missing; treat that as empty
+        [[ "$unit" == "<no value>" ]] && unit=""
+        unit_kind=""
+        [[ -n "$unit" ]] && unit_kind="quadlet"
+
+        # Fallback: containers managed by the legacy `podman generate systemd`
+        # tooling don't carry the PODMAN_SYSTEMD_UNIT label. Their unit files
+        # follow the convention container-<name>.service.
+        if [[ -z "$unit" ]]; then
+          candidate="container-${i}.service"
+          if "${sctl[@]}" cat "$candidate" >/dev/null 2>&1; then
+            unit="$candidate"
+            unit_kind="legacy"
+          fi
+        fi
 
         if [ -n "$unit" ]; then
-          printf "\n%bDetected Quadlet-managed container: %s (unit: %s)%b\n\n" \
-            "$c_green" "$i" "$unit" "$c_reset"
+          if [[ "$unit_kind" == "quadlet" ]]; then
+            printf "\n%bDetected Quadlet-managed container: %s (unit: %s, scope: %s)%b\n\n" \
+              "$c_green" "$i" "$unit" "$scope_label" "$c_reset"
+          else
+            printf "\n%bDetected systemd-managed container (legacy podman generate systemd): %s (unit: %s, scope: %s)%b\n\n" \
+              "$c_green" "$i" "$unit" "$scope_label" "$c_reset"
+          fi
           printf "%bPulling new image...%b\n\n" "$c_teal" "$c_reset"
           if podman pull "$ContImage"; then
             printf "\n%bSuccessfully pulled new image%b\n\n" "$c_green" "$c_reset"
@@ -701,12 +732,14 @@ if [[ -n "${GotUpdates:-}" ]]; then
           fi
 
           printf "%bAttempting to restart unit...%b\n\n" "$c_teal" "$c_reset"
-          if timeout 60 systemctl --user restart "$unit"; then
-            printf "\n%bQuadlet container %s updated and restarted (user scope)%b\n\n" \
-              "$c_green" "$i" "$c_reset"
+          # Clear any prior failed state so the start-rate-limit doesn't block restart
+          "${sctl[@]}" reset-failed "$unit" >/dev/null 2>&1 || true
+          if timeout 60 "${sctl[@]}" restart "$unit"; then
+            printf "\n%bContainer %s updated and restarted (%s scope)%b\n\n" \
+              "$c_green" "$i" "$scope_label" "$c_reset"
           else
             printf "\n%bFailed to restart unit %s%b\n" "$c_red" "$unit" "$c_reset"
-            systemctl --user status "$unit"
+            "${sctl[@]}" status "$unit" --no-pager || true
           fi
           continue
         fi
