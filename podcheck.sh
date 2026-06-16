@@ -760,6 +760,10 @@ if [[ -n "${GotUpdates:-}" ]]; then
     for i in "${SelectedUpdates[@]}"; do
       ((CurrentQue+=1))
       unset CompleteConfs
+      # Reset per-container compose service target so a previous selection
+	    # cannot leak into the next update.
+	    SpecificContainer=""
+
       # Extract labels and metadata
       ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
       ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
@@ -777,7 +781,7 @@ if [[ -n "${GotUpdates:-}" ]]; then
       ContRestartStack=$($jqbin -r '."sudo-kraken.podcheck.restart-stack"' <<< "$ContLabels")
       [[ "$ContRestartStack" == "null" ]] && ContRestartStack=""
       ContOnlySpecific=$($jqbin -r '."sudo-kraken.podcheck.only-specific-container"' <<< "$ContLabels")
-      [[ "$ContOnlySpecific" == "null" ]] && ContRestartStack=""
+      [[ "$ContOnlySpecific" == "null" ]] && ContOnlySpecific=""
 
       printf "\n%bNow recreating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
 
@@ -810,12 +814,12 @@ if [[ "$SkipRecreation" == true ]]; then
         continue
       fi
 
-      # For compose, if container was stopped, bring it back up without starting it
+      # For compose, if container was stopped, recreate  it back up without starting it
       if [[ "$ContState" == "exited" ]] || [[ "$ContState" == "stopped" ]]; then
         printf "\n%bℹ️ Container was stopped. Recreating but not starting to preserve state.%b\n" "$c_yellow" "$c_reset"
-        ComposeUpFlags="--no-start"
+        ComposeUpFlags="--force-recreate --no-start"
       else
-        ComposeUpFlags="-d"
+        ComposeUpFlags="-d --force-recreate"
       fi
 
       # Check if the whole stack should be restarted
