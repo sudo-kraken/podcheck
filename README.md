@@ -94,6 +94,8 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.2.2**: 🐛 **Bug Fixes**
+    - **Fixed**: Fix compose container recreation after image pull.
 - **v1.2.1**: 🐛 **Bug Fixes**
     - **Fixed**: Handle containers without `PODMAN_SYSTEMD_UNIT` label and detect legacy `podman generate systemd` units.
     - **Fixed**: Removed duplicate update checker that caused forced prompts.

@@ -3,7 +3,7 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.2.1"
+VERSION="v1.2.2"
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
