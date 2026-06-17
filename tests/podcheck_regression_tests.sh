@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.2.3"'
+printf '%s\n' 'VERSION="v1.2.4"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -194,7 +194,7 @@ export FAKE_PODMAN_LOG="$log_file"
 export FAKE_CONTAINERS="web db"
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "Fix self-update change notes" ]]
+[[ "$header_changes" == "v1.2.2 compose fix; v1.2.3 filters/metrics/webhooks; v1.2.4 update notes" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
