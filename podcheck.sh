@@ -3,14 +3,14 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.2.3"
+VERSION="v1.2.4"
+# ChangeNotes: v1.2.2 compose fix; v1.2.3 filters/metrics/webhooks; v1.2.4 update notes
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
 ScriptPath="$(readlink -f "$0")"
 ScriptWorkDir="$(dirname "$ScriptPath")"
 
-# ChangeNotes: Fix filters, Prometheus metrics, webhook returns, and self-update notes
 Github="https://github.com/sudo-kraken/podcheck"
 RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh"
 
