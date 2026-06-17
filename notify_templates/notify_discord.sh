@@ -8,29 +8,30 @@ if [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
   return 1
 fi
 
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required for Discord notifications"
+  return 1
+fi
+
 # Prepare the Discord message
 if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
-  # Format message for Discord - escape quotes and newlines
-  discord_content="${NOTIFICATION_MESSAGE}"
-  discord_content="${discord_content//\"/\\\"}"
-  discord_content="${discord_content//$'\n'/\\n}"
-  
   # Create Discord webhook payload
-  discord_payload=$(cat <<EOF
-{
-  "content": "${discord_content}",
-  "username": "Podcheck",
-  "embeds": [
-    {
-      "title": "${NOTIFICATION_TITLE:-Podcheck Notification}",
-      "description": "${discord_content}",
-      "color": 3447003,
-      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-    }
-  ]
-}
-EOF
-)
+  discord_payload=$(jq -n \
+    --arg content "${NOTIFICATION_MESSAGE}" \
+    --arg title "${NOTIFICATION_TITLE:-Podcheck Notification}" \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+    '{
+      content: $content,
+      username: "Podcheck",
+      embeds: [
+        {
+          title: $title,
+          description: $content,
+          color: 3447003,
+          timestamp: $timestamp
+        }
+      ]
+    }')
 
   # Send to Discord
   if curl -H "Content-Type: application/json" \

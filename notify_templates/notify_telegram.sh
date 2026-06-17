@@ -9,25 +9,26 @@ if [[ -z "${TELEGRAM_TOKEN:-}" ]] || [[ -z "${TELEGRAM_CHAT_ID:-}" ]]; then
   return 1
 fi
 
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required for Telegram notifications"
+  return 1
+fi
+
 # Prepare the Telegram message
 if [[ -n "${NOTIFICATION_MESSAGE:-}" ]]; then
-  # Escape special characters for JSON
-  telegram_message="${NOTIFICATION_MESSAGE}"
-  telegram_message="${telegram_message//\"/\\\"}"
-  telegram_message="${telegram_message//$'\n'/\\n}"
-  
   # Build Telegram URL
   telegram_url="https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
-  
+
   # Create payload
-  telegram_data="{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"${telegram_message}\""
-  
-  # Add topic ID if specified
-  if [[ -n "${TELEGRAM_TOPIC_ID:-}" && "${TELEGRAM_TOPIC_ID}" != "0" ]]; then
-    telegram_data="${telegram_data},\"message_thread_id\":\"${TELEGRAM_TOPIC_ID}\""
-  fi
-  
-  telegram_data="${telegram_data},\"disable_notification\": false}"
+  telegram_data=$(jq -n \
+    --arg chat_id "${TELEGRAM_CHAT_ID}" \
+    --arg text "${NOTIFICATION_MESSAGE}" \
+    --arg topic "${TELEGRAM_TOPIC_ID:-}" \
+    '{
+      chat_id: $chat_id,
+      text: $text,
+      disable_notification: false
+    } + (if $topic == "" or $topic == "0" then {} else {message_thread_id: $topic} end)')
   
   # Send to Telegram
   if curl -s -o /dev/null --fail -X POST \

@@ -94,6 +94,11 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.2.3**: 🐛 **Bug Fixes**
+    - **Fixed**: Keep comma-separated container filters working through the whole run.
+    - **Fixed**: Export Prometheus totals and check duration while keeping the existing dashboard metrics.
+    - **Fixed**: Return cleanly from sourced webhook notification templates.
+    - **Fixed**: Show self-update change notes reliably.
 - **v1.2.2**: 🐛 **Bug Fixes**
     - **Fixed**: Fix compose container recreation after image pull.
 - **v1.2.1**: 🐛 **Bug Fixes**

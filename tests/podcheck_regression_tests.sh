@@ -4,14 +4,30 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp_dir="$(mktemp -d)"
 fake_bin="${tmp_dir}/bin"
+collector_dir="${tmp_dir}/collector"
 log_file="${tmp_dir}/commands.log"
-mkdir -p "$fake_bin"
+mkdir -p "$fake_bin" "$collector_dir"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 cat > "${fake_bin}/curl" <<'CURL'
 #!/usr/bin/env bash
-printf '%s\n' 'VERSION="v1.2.2"'
-printf '%s\n' '# ChangeNotes: regression test fixture'
+range_end=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -r)
+      range_end="${2##*-}"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+printf '%s\n' 'VERSION="v1.2.3"'
+if [[ "$range_end" -ge 512 ]]; then
+  printf '%s\n' '# ChangeNotes: regression test fixture'
+fi
 CURL
 
 cat > "${fake_bin}/regctl" <<'REGCTL'
@@ -175,6 +191,18 @@ chmod +x "${fake_bin}/curl" "${fake_bin}/regctl" "${fake_bin}/jq" "${fake_bin}/p
 
 export PATH="${fake_bin}:${PATH}"
 export FAKE_PODMAN_LOG="$log_file"
+export FAKE_CONTAINERS="web db"
+
+latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
+latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
+[[ "$latest_changes" == "regression test fixture" ]]
+
+: > "$log_file"
+bash "${repo_root}/podcheck.sh" -n -c "$collector_dir" web,db > "${tmp_dir}/check.log"
+grep -Fq 'name=^(web|db)$' "$log_file"
+grep -Fq 'podcheck_total 2' "${collector_dir}/podcheck.prom"
+grep -Fq 'podcheck_images_analyzed 2' "${collector_dir}/podcheck.prom"
+
 project_dir="${tmp_dir}/project with spaces"
 mkdir -p "$project_dir"
 export FAKE_PROJECT_DIR="$project_dir"
