@@ -7,14 +7,16 @@
 # Check if required variables are set
 if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
     echo "Error: SLACK_WEBHOOK_URL must be set in podcheck.config"
-    exit 1
+    return 1
+fi
+
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required for Slack notifications"
+    return 1
 fi
 
 # Optional Slack channel (if not using webhook default)
-SLACK_CHANNEL_ARG=""
-if [[ -n "${SLACK_CHANNEL:-}" ]]; then
-    SLACK_CHANNEL_ARG=", \"channel\": \"${SLACK_CHANNEL}\""
-fi
+SLACK_CHANNEL="${SLACK_CHANNEL:-}"
 
 # Optional username override
 SLACK_USERNAME="${SLACK_USERNAME:-podcheck}"
@@ -23,22 +25,26 @@ SLACK_USERNAME="${SLACK_USERNAME:-podcheck}"
 SLACK_ICON="${SLACK_ICON:-:whale:}"
 
 # Prepare the JSON payload
-JSON_PAYLOAD=$(cat <<EOF
-{
-    "username": "${SLACK_USERNAME}",
-    "icon_emoji": "${SLACK_ICON}",
-    "text": "${NOTIFICATION_TITLE}",
-    "attachments": [
-        {
-            "color": "warning",
-            "text": "${NOTIFICATION_MESSAGE}",
-            "footer": "podcheck",
-            "ts": $(date +%s)
-        }
-    ]${SLACK_CHANNEL_ARG}
-}
-EOF
-)
+JSON_PAYLOAD=$(jq -n \
+    --arg username "$SLACK_USERNAME" \
+    --arg icon "$SLACK_ICON" \
+    --arg title "${NOTIFICATION_TITLE:-Podcheck Notification}" \
+    --arg message "${NOTIFICATION_MESSAGE:-}" \
+    --arg channel "$SLACK_CHANNEL" \
+    --argjson ts "$(date +%s)" \
+    '{
+        username: $username,
+        icon_emoji: $icon,
+        text: $title,
+        attachments: [
+            {
+                color: "warning",
+                text: $message,
+                footer: "podcheck",
+                ts: $ts
+            }
+        ]
+    } + (if $channel == "" then {} else {channel: $channel} end)')
 
 # Send the notification
 if curl -s -X POST \
@@ -46,7 +52,8 @@ if curl -s -X POST \
     -d "${JSON_PAYLOAD}" \
     "${SLACK_WEBHOOK_URL}" > /dev/null; then
     echo "Slack notification sent successfully"
+    return 0
 else
     echo "Failed to send Slack notification"
-    exit 1
+    return 1
 fi

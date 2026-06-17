@@ -28,13 +28,35 @@ prometheus_exporter() {
   local no_updates="$1"
   local updates="$2"
   local errors="$3"
-  local total="$4"
-  local check_duration="$5"
+  local total="${4:-$((no_updates + updates + errors))}"
+  local check_duration="${5:-0}"
   local collector_dir="${CollectorTextFileDirectory:-/tmp}"
+  local metrics_file="${collector_dir}/podcheck.prom"
+  local tmp_file="${metrics_file}.$$"
   local last_check_timestamp
   last_check_timestamp=$(date +%s)
 
   {
+    echo "# HELP podcheck_images_analyzed Podman images that have been analyzed."
+    echo "# TYPE podcheck_images_analyzed gauge"
+    echo "podcheck_images_analyzed $total"
+
+    echo "# HELP podcheck_images_outdated Podman images that are outdated."
+    echo "# TYPE podcheck_images_outdated gauge"
+    echo "podcheck_images_outdated $updates"
+
+    echo "# HELP podcheck_images_latest Podman images that are on the latest image."
+    echo "# TYPE podcheck_images_latest gauge"
+    echo "podcheck_images_latest $no_updates"
+
+    echo "# HELP podcheck_images_error Podman images with analysis errors."
+    echo "# TYPE podcheck_images_error gauge"
+    echo "podcheck_images_error $errors"
+
+    echo "# HELP podcheck_images_analyze_timestamp_seconds Last podcheck run time."
+    echo "# TYPE podcheck_images_analyze_timestamp_seconds gauge"
+    echo "podcheck_images_analyze_timestamp_seconds $last_check_timestamp"
+
     echo "# HELP podcheck_no_updates Number of containers already on latest image."
     echo "# TYPE podcheck_no_updates gauge"
     echo "podcheck_no_updates $no_updates"
@@ -58,5 +80,5 @@ prometheus_exporter() {
     echo "# HELP podcheck_last_check_timestamp Epoch timestamp of the last update check."
     echo "# TYPE podcheck_last_check_timestamp gauge"
     echo "podcheck_last_check_timestamp $last_check_timestamp"
-  } > "$collector_dir/podcheck.prom"
+  } > "$tmp_file" && mv "$tmp_file" "$metrics_file"
 }

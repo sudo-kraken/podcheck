@@ -7,7 +7,7 @@ A simple cron job can be configured to export these metrics on a regular interva
 0 1 * * * /root/podcheck.sh -n -c /var/lib/node_exporter/textfile_collector
 ```
 
-The following metrics are exported to prometheus
+The following metrics are exported to Prometheus. The `podcheck_images_*` metrics are kept for dashboard compatibility, and the `podcheck_*` metrics expose the same counts plus run duration.
 
 ```
 # HELP podcheck_images_analyzed Podman images that have been analyzed
@@ -25,6 +25,24 @@ podcheck_images_error 1
 # HELP podcheck_images_analyze_timestamp_seconds Last podcheck run time
 # TYPE podcheck_images_analyze_timestamp_seconds gauge
 podcheck_images_analyze_timestamp_seconds 1737924029
+# HELP podcheck_no_updates Number of containers already on latest image.
+# TYPE podcheck_no_updates gauge
+podcheck_no_updates 14
+# HELP podcheck_updates Number of containers with updates available.
+# TYPE podcheck_updates gauge
+podcheck_updates 7
+# HELP podcheck_errors Number of containers with errors during update check.
+# TYPE podcheck_errors gauge
+podcheck_errors 1
+# HELP podcheck_total Total number of containers checked.
+# TYPE podcheck_total gauge
+podcheck_total 22
+# HELP podcheck_check_duration Duration in seconds for the update check.
+# TYPE podcheck_check_duration gauge
+podcheck_check_duration 12
+# HELP podcheck_last_check_timestamp Epoch timestamp of the last update check.
+# TYPE podcheck_last_check_timestamp gauge
+podcheck_last_check_timestamp 1737924029
 ```
 
 Once those metrics are exported they can be used to define alarms as shown below

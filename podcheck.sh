@@ -188,12 +188,12 @@ shift "$((OPTIND-1))"
 
 # Set $1 to a variable for name filtering later, rewriting if multiple
 SearchName="${1:-}"
-if [[ ! -z "$SearchName" ]]; then
+if [[ -n "$SearchName" ]]; then
   SearchName="^(${SearchName//,/|})$"
 fi
 
 # Check if there's a new release of the script
-LatestSnippet="$(curl ${CurlArgs} -r 0-200 "$RawUrl" || printf "undefined")"
+LatestSnippet="$(curl ${CurlArgs} -r 0-1024 "$RawUrl" || printf "undefined")"
 LatestRelease="$(echo "${LatestSnippet}" | sed -n "/VERSION/s/VERSION=//p" | tr -d '"')"
 LatestChanges="$(echo "${LatestSnippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
 
@@ -234,9 +234,6 @@ exec_if_exists() {
 exec_if_exists_or_fail() {
   [[ $(type -t $1) == function ]] && "$@"
 }
-
-# Now get the search name from the first remaining positional parameter
-SearchName="${1:-}"
 
 choosecontainers() {
   while [[ -z "${ChoiceClean:-}" ]]; do
@@ -501,14 +498,6 @@ if [[ -n ${Excludes[*]:-} ]]; then
   printf "\n"
 fi
 
-
-
-if [[ -n "${Excludes[*]}" ]]; then
-  printf "\n%bExcluding these names:%b\n" "$c_blue" "$c_reset"
-  printf "%s\n" "${Excludes[@]}"
-  printf "\n"
-fi
-
 ContCount=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | wc -l)
 RegCheckQue=0
 start_time=$(date +%s)
@@ -607,7 +596,10 @@ unset IFS
 
 # Run the prometheus exporter function
 if [[ -n "${CollectorTextFileDirectory:-}" ]]; then
-  exec_if_exists_or_fail prometheus_exporter ${#NoUpdates[@]} ${#GotUpdates[@]} ${#GotErrors[@]} || printf "%s\n" "Could not source prometheus exporter function."
+  check_duration=$(( $(date +%s) - start_time ))
+  exec_if_exists_or_fail prometheus_exporter \
+    "${#NoUpdates[@]}" "${#GotUpdates[@]}" "${#GotErrors[@]}" "$ContCount" "$check_duration" \
+    || printf "%s\n" "Could not source prometheus exporter function."
 fi
 
 # Define how many updates are available
