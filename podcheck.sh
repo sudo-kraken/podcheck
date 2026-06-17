@@ -4,13 +4,13 @@ shopt -s nullglob
 shopt -s failglob
 
 VERSION="v1.2.3"
+# ChangeNotes: Fix self-update change notes
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
 ScriptPath="$(readlink -f "$0")"
 ScriptWorkDir="$(dirname "$ScriptPath")"
 
-# ChangeNotes: Fix filters, Prometheus metrics, webhook returns, and self-update notes
 Github="https://github.com/sudo-kraken/podcheck"
 RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh"
 

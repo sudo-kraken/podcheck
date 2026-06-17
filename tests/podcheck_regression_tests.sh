@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 printf '%s\n' 'VERSION="v1.2.3"'
-if [[ "$range_end" -ge 512 ]]; then
+if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
 CURL
@@ -192,6 +192,9 @@ chmod +x "${fake_bin}/curl" "${fake_bin}/regctl" "${fake_bin}/jq" "${fake_bin}/p
 export PATH="${fake_bin}:${PATH}"
 export FAKE_PODMAN_LOG="$log_file"
 export FAKE_CONTAINERS="web db"
+
+header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
+[[ "$header_changes" == "Fix self-update change notes" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
