@@ -3,14 +3,14 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.2.2"
+VERSION="v1.2.3"
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
 ScriptPath="$(readlink -f "$0")"
 ScriptWorkDir="$(dirname "$ScriptPath")"
 
-# ChangeNotes: Fix self_update function ordering, improve CI workflows, add release automation
+# ChangeNotes: Fix filters, Prometheus metrics, webhook returns, and self-update notes
 Github="https://github.com/sudo-kraken/podcheck"
 RawUrl="https://raw.githubusercontent.com/sudo-kraken/podcheck/main/podcheck.sh"
 

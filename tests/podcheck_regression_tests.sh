@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.2.2"'
+printf '%s\n' 'VERSION="v1.2.3"'
 if [[ "$range_end" -ge 512 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
