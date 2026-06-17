@@ -48,3 +48,7 @@ jobs:
         run: |
           chmod +x podcheck.sh
           ./podcheck.sh -v
+
+      - name: Run regression tests
+        run: |
+          bash tests/podcheck_regression_tests.sh
