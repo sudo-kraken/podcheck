@@ -480,10 +480,13 @@ fi
 # Check podman compose binary
 podman info &>/dev/null || { printf "\n%bYour current user does not have permissions to the podman socket - may require root / podman group. Exiting.%b\n" "$c_red" "$c_reset"; exit 1; }
 if podman compose version &>/dev/null; then
-  PodmanBin="podman compose" ;
+  PodmanCmd=(podman compose)
+  ComposeAvailable=true
 elif podman-compose version &>/dev/null; then
-  PodmanBin="podman-compose" ;
+  PodmanCmd=(podman-compose)
+  ComposeAvailable=true
 elif podman -v &>/dev/null; then
+  ComposeAvailable=false
   printf "%s\n" "No podman compose binary available, using plain podman (Not recommended!)"
   printf "%s\n" "'podman run' will ONLY update images, not the container itself."
 else
@@ -759,15 +762,15 @@ if [[ -n "${GotUpdates:-}" ]]; then
     CurrentQue=0
     for i in "${SelectedUpdates[@]}"; do
       ((CurrentQue+=1))
-      unset CompleteConfs
-      # Reset per-container compose service target so a previous selection
-	    # cannot leak into the next update.
-	    SpecificContainer=""
+      CompleteConfs=()
+      ContEnvs=()
+      ComposeUpFlags=()
+      SpecificContainer=()
 
       # Extract labels and metadata
       ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
       ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
-      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null) # <-- We just added this line back in!
+      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null)
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
       [[ "$ContPath" == "null" ]] && ContPath=""
       ContConfigFile=$($jqbin -r '."com.docker.compose.project.config_files"' <<< "$ContLabels")
@@ -788,45 +791,64 @@ if [[ -n "${GotUpdates:-}" ]]; then
       # Checking if compose-values are empty - hence started with podman run
       [[ -z "$ContPath" ]] && { echo "Not a compose container, skipping."; continue; }
 
+      [[ "${ComposeAvailable:-false}" != true ]] && { echo "No podman compose binary available, skipping compose recreation."; continue; }
+
       # Checking if Label Only -option is set, and if container got the label
       [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != true ]] && { echo "No update label, skipping."; continue; } }
 
       # cd to the compose-file directory to account for people who use relative volumes
       cd "$ContPath" || { printf "\n%bPath error - skipping%b %s" "$c_red" "$c_reset" "$i"; continue; }
       ## Reformatting path + multi compose
-      if [[ $ContConfigFile == '/'* ]]; then
-        CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s " "$conf"; done)
-      else
-        CompleteConfs=$(for conf in ${ContConfigFile//,/ }; do printf -- "-f %s/%s " "$ContPath" "$conf"; done)
+      if [[ -n "$ContConfigFile" ]]; then
+        IFS=',' read -ra ConfigFiles <<< "$ContConfigFile"
+        unset IFS
+        for conf in "${ConfigFiles[@]}"; do
+          [[ -z "$conf" ]] && continue
+          if [[ $conf == '/'* ]]; then
+            CompleteConfs+=(-f "$conf")
+          else
+            CompleteConfs+=(-f "$ContPath/$conf")
+          fi
+        done
       fi
       # Check if the container got an environment file set and reformat it
-      ContEnvs=""
       if [[ -n "$ContEnv" ]]; then
-        ContEnvs=$(for env in ${ContEnv//,/ }; do printf -- "--env-file %s " "$env"; done);
+        IFS=',' read -ra EnvFiles <<< "$ContEnv"
+        unset IFS
+        for env in "${EnvFiles[@]}"; do
+          [[ -z "$env" ]] && continue
+          ContEnvs+=(--env-file "$env")
+        done
       fi
       # Set variable when compose up should only target the specific container, not the stack
       if [[ $OnlySpecific == true ]] || [[ $ContOnlySpecific == true ]]; then
-        SpecificContainer="$ContName";
+        SpecificContainer=("$ContName")
       fi
 
-if [[ "$SkipRecreation" == true ]]; then
+      if [[ "$SkipRecreation" == true ]]; then
         printf "\n%b⏭️ Skipping compose recreation (-R flag passed)%b\n" "$c_yellow" "$c_reset"
         continue
       fi
 
-      # For compose, if container was stopped, recreate  it back up without starting it
+      # For compose, if container was stopped, recreate it without starting it
       if [[ "$ContState" == "exited" ]] || [[ "$ContState" == "stopped" ]]; then
         printf "\n%bℹ️ Container was stopped. Recreating but not starting to preserve state.%b\n" "$c_yellow" "$c_reset"
-        ComposeUpFlags="--force-recreate --no-start"
+        ComposeUpFlags=(--force-recreate --no-start)
       else
-        ComposeUpFlags="-d --force-recreate"
+        ComposeUpFlags=(-d --force-recreate)
       fi
 
       # Check if the whole stack should be restarted
       if [[ "$ContRestartStack" == true ]] || [[ "$ForceRestartStacks" == true ]]; then
-        ${PodmanBin} ${CompleteConfs} stop; ${PodmanBin} ${CompleteConfs} ${ContEnvs} up ${ComposeUpFlags} || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
+        if ! "${PodmanCmd[@]}" "${CompleteConfs[@]}" stop || ! "${PodmanCmd[@]}" "${CompleteConfs[@]}" "${ContEnvs[@]}" up "${ComposeUpFlags[@]}"; then
+          printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset"
+          exit 1
+        fi
       else
-        ${PodmanBin} ${CompleteConfs} ${ContEnvs} up ${ComposeUpFlags} ${SpecificContainer} || { printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset" ; exit 1; }
+        if ! "${PodmanCmd[@]}" "${CompleteConfs[@]}" "${ContEnvs[@]}" up "${ComposeUpFlags[@]}" "${SpecificContainer[@]}"; then
+          printf "\n%bPodman error, exiting!%b\n" "$c_red" "$c_reset"
+          exit 1
+        fi
       fi
     done
     if [[ "$AutoPrune" == false ]] && [[ "$AutoMode" == false ]]; then
