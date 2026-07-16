@@ -94,6 +94,9 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.3.0**: ✨ **New Features**
+    - **Added**: Show Podman pod names as `pod » container` and group lists by pod and container name.
+    - **Improved**: Remove duplicate entries from the sample configuration files.
 - **v1.2.4**: 🐛 **Bug Fixes**
     - **Fixed**: Keep self-update change notes visible to older updater versions.
 - **v1.2.3**: 🐛 **Bug Fixes**

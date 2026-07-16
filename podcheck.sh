@@ -3,8 +3,8 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.2.4"
-# ChangeNotes: v1.2.2 compose fix; v1.2.3 filters/metrics/webhooks; v1.2.4 update notes
+VERSION="v1.3.0"
+# ChangeNotes: v1.3.0 shows and groups pod names in container lists
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
