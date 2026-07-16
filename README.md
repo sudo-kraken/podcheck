@@ -94,6 +94,9 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.3.0**: ✨ **New Features**
+    - **Added**: Show Podman pod names as `pod » container` and group lists by pod and container name.
+    - **Improved**: Remove duplicate entries from the sample configuration files.
 - **v1.2.4**: 🐛 **Bug Fixes**
     - **Fixed**: Keep self-update change notes visible to older updater versions.
 - **v1.2.3**: 🐛 **Bug Fixes**
@@ -198,16 +201,19 @@ Options:
 $ ./podcheck.sh
 ...
 Containers on latest version:
-filebrowser
-foundryvtt
+luanti » frontend
+luanti » game
+watchtower
 
 Containers with updates available:
-1) joplin-db
-2) it-tools
+1) matrix » frontend
+2) matrix » postgres
 
 Choose what containers to update:
 Enter number(s) separated by comma, [a] for all - [q] to quit:
 ```
+
+Containers in a pod are grouped by pod name and shown as `pod » container`. Standalone containers keep their normal name.
 
 Then it proceeds to run `podman pull` and `podman compose up -d`, or restarts systemd units for every container with updates.
 After the updates are complete, you will be prompted if you would like to prune dangling images.

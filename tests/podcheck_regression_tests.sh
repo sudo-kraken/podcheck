@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.2.4"'
+printf '%s\n' 'VERSION="v1.3.0"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -113,6 +113,17 @@ extract_format() {
   printf '%s\n' "$format"
 }
 
+pod_for_container() {
+  local container="$1"
+  local pair
+  for pair in ${FAKE_PODS:-}; do
+    if [[ "${pair%%=*}" == "$container" ]]; then
+      printf '%s' "${pair#*=}"
+      return 0
+    fi
+  done
+}
+
 case "${1:-}" in
   info)
     exit 0
@@ -131,8 +142,13 @@ case "${1:-}" in
     ;;
   ps)
     log "ps $*"
+    format="$(extract_format "${@:2}")"
     for container in ${FAKE_CONTAINERS}; do
-      printf '%s\n' "$container"
+      if [[ "$format" == *'.PodName'* ]]; then
+        printf '%s|%s\n' "$container" "$(pod_for_container "$container")"
+      else
+        printf '%s\n' "$container"
+      fi
     done
     exit 0
     ;;
@@ -192,9 +208,10 @@ chmod +x "${fake_bin}/curl" "${fake_bin}/regctl" "${fake_bin}/jq" "${fake_bin}/p
 export PATH="${fake_bin}:${PATH}"
 export FAKE_PODMAN_LOG="$log_file"
 export FAKE_CONTAINERS="web db"
+export FAKE_PODS="web=matrix db=luanti"
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "v1.2.2 compose fix; v1.2.3 filters/metrics/webhooks; v1.2.4 update notes" ]]
+[[ "$header_changes" == "v1.3.0 shows and groups pod names in container lists" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
@@ -205,18 +222,23 @@ bash "${repo_root}/podcheck.sh" -n -c "$collector_dir" web,db > "${tmp_dir}/chec
 grep -Fq 'name=^(web|db)$' "$log_file"
 grep -Fq 'podcheck_total 2' "${collector_dir}/podcheck.prom"
 grep -Fq 'podcheck_images_analyzed 2' "${collector_dir}/podcheck.prom"
+pod_lines="$(grep ' » ' "${tmp_dir}/check.log")"
+[[ "$pod_lines" == $'luanti » db\nmatrix » web' ]]
 
 project_dir="${tmp_dir}/project with spaces"
 mkdir -p "$project_dir"
 export FAKE_PROJECT_DIR="$project_dir"
 export FAKE_COMPOSE_LABELS=true
 export FAKE_CONTAINERS="svc-a svc-b"
+export FAKE_PODS="svc-a=matrix svc-b=luanti"
 export REGCTL_DIGEST="sha256:def"
 
 : > "$log_file"
 bash "${repo_root}/podcheck.sh" -y svc-a,svc-b > "${tmp_dir}/update.log"
 grep -Fq "[-f] [${project_dir}/compose.yml]" "$log_file"
 grep -Fq 'up] [-d] [--force-recreate] [svc-a]' "$log_file"
+grep -Fq 'luanti » svc-b' "${tmp_dir}/update.log"
+grep -Fq 'matrix » svc-a' "${tmp_dir}/update.log"
 up_count="$(grep -F ' [up] ' "$log_file" | wc -l)"
 svc_target_count="$(grep -F 'up] [-d] [--force-recreate] [svc-a]' "$log_file" | wc -l)"
 if [[ "$up_count" -ne 2 ]] || [[ "$svc_target_count" -ne 1 ]]; then
