@@ -198,16 +198,19 @@ Options:
 $ ./podcheck.sh
 ...
 Containers on latest version:
-filebrowser
-foundryvtt
+luanti » frontend
+luanti » game
+watchtower
 
 Containers with updates available:
-1) joplin-db
-2) it-tools
+1) matrix » frontend
+2) matrix » postgres
 
 Choose what containers to update:
 Enter number(s) separated by comma, [a] for all - [q] to quit:
 ```
+
+Containers in a pod are grouped by pod name and shown as `pod » container`. Standalone containers keep their normal name.
 
 Then it proceeds to run `podman pull` and `podman compose up -d`, or restarts systemd units for every container with updates.
 After the updates are complete, you will be prompted if you would like to prune dangling images.

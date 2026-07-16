@@ -148,6 +148,8 @@ GotUpdates=()
 NoUpdates=()
 GotErrors=()
 SelectedUpdates=()
+ContainerNames=()
+ContainerPodNames=()
 CurlArgs="--retry ${CurlRetryCount:-3} --retry-delay ${CurlRetryDelay:-1} --connect-timeout ${CurlConnectTimeout:-5} -sf"
 regbin=""
 jqbin=""
@@ -257,36 +259,125 @@ choosecontainers() {
     fi
   done
   printf "\nUpdating containers:\n"
-  printf "%s\n" "${SelectedUpdates[@]}"
+  print_container_results "${SelectedUpdates[@]}"
   printf "\n"
+}
+
+pod_name_for() {
+  local container="$1"
+  local index
+
+  for index in "${!ContainerNames[@]}"; do
+    if [[ "${ContainerNames[$index]}" == "$container" ]]; then
+      printf "%s" "${ContainerPodNames[$index]}"
+      return 0
+    fi
+  done
+}
+
+container_name_from_result() {
+  local item="$1"
+  local container="${item%% *}"
+  printf "%s" "${container#+}"
+}
+
+container_display_name() {
+  local container="$1"
+  local pod_name
+  pod_name="$(pod_name_for "$container")"
+
+  if [[ -n "$pod_name" ]]; then
+    printf "%s » %s" "$pod_name" "$container"
+  else
+    printf "%s" "$container"
+  fi
+}
+
+print_container_results() {
+  local item first container prefix suffix pod_name
+
+  for item in "$@"; do
+    first="${item%% *}"
+    container="$first"
+    prefix=""
+    suffix=""
+    [[ "$item" == *" "* ]] && suffix=" ${item#* }"
+    if [[ "$container" == +* ]]; then
+      prefix="+"
+      container="${container#+}"
+    fi
+
+    pod_name="$(pod_name_for "$container")"
+    if [[ -n "$pod_name" ]]; then
+      printf "%s » %s%s%s\n" "$pod_name" "$prefix" "$container" "$suffix"
+    else
+      printf "%s\n" "$item"
+    fi
+  done
+}
+
+sort_container_results() {
+  local item container pod_name
+
+  for item in "$@"; do
+    container="$(container_name_from_result "$item")"
+    pod_name="$(pod_name_for "$container")"
+    printf "%s\t%s\t%s\n" "$pod_name" "$container" "$item"
+  done | LC_ALL=C sort -t $'\t' -k1,1 -k2,2 | cut -f3-
+}
+
+load_container_metadata() {
+  local rows container pod_name
+
+  if ! rows=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}|{{.PodName}}' 2>/dev/null); then
+    rows=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}|')
+  fi
+
+  while IFS='|' read -r container pod_name; do
+    [[ -z "$container" ]] && continue
+    ContainerNames+=("$container")
+    ContainerPodNames+=("$pod_name")
+  done <<< "$rows"
 }
 
 # Function to add user-provided urls to releasenotes
 releasenotes() {
-  unset Updates
+  local update display_name container url
+  local found
+  Updates=()
   for update in "${GotUpdates[@]}"; do
+    display_name="$(container_display_name "$update")"
     found=false
     while read -r container url; do
       if [[ "$update" == "$container" ]] && [[ "$PrintMarkdownURL" == true ]]; then
-        Updates+=("- [$update]($url)"); found=true;
+        Updates+=("- [$display_name]($url)"); found=true;
       elif [[ "$update" == "$container" ]]; then
-        Updates+=("$update  ->  $url"); found=true;
+        Updates+=("$display_name  ->  $url"); found=true;
       fi
     done < "${ScriptWorkDir}/urls.list"
     if [[ "$found" == false ]] && [[ "$PrintMarkdownURL" == true ]]; then
-      Updates+=("- $update  ->  url missing");
+      Updates+=("- $display_name  ->  url missing");
     elif [[ "$found" == false ]]; then
-      Updates+=("$update  ->  url missing");
+      Updates+=("$display_name  ->  url missing");
     else
       continue;
     fi
   done
 }
 
+plain_updates() {
+  local update
+  Updates=()
+  for update in "${GotUpdates[@]}"; do
+    Updates+=("$(container_display_name "$update")")
+  done
+}
+
 # Numbered List function
 # if urls.list exists add release note url per line
 list_options() {
-  num=1
+  local num=1
+  local update
   for update in "${Updates[@]}"; do
     echo "$num) $update"
     ((num++))
@@ -498,7 +589,8 @@ if [[ -n ${Excludes[*]:-} ]]; then
   printf "\n"
 fi
 
-ContCount=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | wc -l)
+load_container_metadata
+ContCount="${#ContainerNames[@]}"
 RegCheckQue=0
 start_time=$(date +%s)
 
@@ -565,7 +657,6 @@ else
 fi
 
 # Variables for progress_bar function
-ContCount=$(podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | wc -l)
 RegCheckQue=0
 
 # Asynchronously check the image-hash of every running container VS the registry
@@ -584,14 +675,15 @@ while read -r line; do
     *) echo "Error! Unexpected output from subprocess: ${line}" ;;
   esac
 done < <( \
-  podman ps $Stopped --filter "name=$SearchName" --format '{{.Names}}' | \
+  printf "%s\n" "${ContainerNames[@]}" | \
   xargs $XargsAsync -I {} bash -c 'check_image "{}"' \
 )
 
-# Sort arrays alphabetically
+# Group results by pod name, then container name
 IFS=$'\n'
-NoUpdates=($(sort <<<"${NoUpdates[*]:-}"))
-GotUpdates=($(sort <<<"${GotUpdates[*]:-}"))
+NoUpdates=($(sort_container_results "${NoUpdates[@]}"))
+GotUpdates=($(sort_container_results "${GotUpdates[@]}"))
+GotErrors=($(sort_container_results "${GotErrors[@]}"))
 unset IFS
 
 # Run the prometheus exporter function
@@ -608,11 +700,11 @@ UpdCount="${#GotUpdates[@]}"
 # List what containers got updates or not
 if [[ -n ${NoUpdates[*]:-} ]]; then
   printf "\n%bContainers on latest version:%b\n" "$c_green" "$c_reset"
-  printf "%s\n" "${NoUpdates[@]}"
+  print_container_results "${NoUpdates[@]}"
 fi
 if [[ -n ${GotErrors[*]:-} ]]; then
   printf "\n%bContainers with errors, won't get updated:%b\n" "$c_red" "$c_reset"
-  printf "%s\n" "${GotErrors[@]}"
+  print_container_results "${GotErrors[@]}"
   printf "%binfo:%b 'unauthorized' often means not found in a public registry.\n" "$c_blue" "$c_reset"
 fi
 if [[ -n ${GotUpdates[*]:-} ]]; then
@@ -620,7 +712,7 @@ if [[ -n ${GotUpdates[*]:-} ]]; then
   if [[ -s "$ScriptWorkDir/urls.list" ]] && [[ "$PrintReleaseURL" == true ]]; then
     releasenotes;
   else
-    Updates=("${GotUpdates[@]}");
+    plain_updates
   fi
   [[ "$AutoMode" == false ]] && list_options || printf "%s\n" "${Updates[@]}"
   [[ "$Notify" == true ]] && { exec_if_exists_or_fail send_notification "${GotUpdates[@]}" || printf "\nCould not source notification function.\n"; }
@@ -638,14 +730,14 @@ if [[ -n "${GotUpdates:-}" ]]; then
   fi
   if [[ "$DontUpdate" == false ]]; then
     printf "\n%bUpdating container(s):%b\n" "$c_blue" "$c_reset"
-    printf "%s\n" "${SelectedUpdates[@]}"
+    print_container_results "${SelectedUpdates[@]}"
 
     NumberofUpdates="${#SelectedUpdates[@]}"
 
     CurrentQue=0
     for i in "${SelectedUpdates[@]}"; do
       ((CurrentQue+=1))
-      printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
+      printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$(container_display_name "$i")" "$c_reset"
       ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
       ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
@@ -778,7 +870,7 @@ if [[ -n "${GotUpdates:-}" ]]; then
       ContOnlySpecific=$($jqbin -r '."sudo-kraken.podcheck.only-specific-container"' <<< "$ContLabels")
       [[ "$ContOnlySpecific" == "null" ]] && ContOnlySpecific=""
 
-      printf "\n%bNow recreating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$i" "$c_reset"
+      printf "\n%bNow recreating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$(container_display_name "$i")" "$c_reset"
 
       # Checking if compose-values are empty - hence started with podman run
       [[ -z "$ContPath" ]] && { echo "Not a compose container, skipping."; continue; }
