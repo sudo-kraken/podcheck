@@ -257,7 +257,7 @@ jobs:
       - name: Upload artifacts to release
         run: |
           gh release upload "${{ env.VERSION }}" release/* --repo "${{ github.repository }}"
-          gh release upload "${{ env.VERSION }}" signed/*.sbom signed/*.bundle --repo "${{ github.repository }}"
+          gh release upload "${{ env.VERSION }}" signed/*.sbom signed/*.bundle signed/release/*.bundle --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
