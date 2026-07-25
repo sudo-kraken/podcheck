@@ -68,6 +68,8 @@ commit_preprocessors = [
   { pattern = '.*\[ci skip\].*', replace = "" },
 ]
 commit_parsers = [
+  # v1.3.0 was released from the feature branch before release tags were gated.
+  { sha = "0f97e944fe867f9ce5613c7db950543a1d4013fa", skip = true },
   { message = "^feat", group = "<!-- 0 -->🚀 Features" },
   { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
   { message = "^doc", group = "<!-- 3 -->📖 Documentation" },
