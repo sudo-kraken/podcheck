@@ -94,6 +94,10 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.3.1**: 🐛 **Bug Fixes**
+    - **Fixed**: Preserve registry error messages containing shell pattern characters.
+    - **Fixed**: Require release tags to come from merged `main` history.
+    - **Fixed**: Keep generated release headings and entries on separate lines.
 - **v1.3.0**: ✨ **New Features**
     - **Added**: Show Podman pod names as `pod » container` and group lists by pod and container name.
     - **Improved**: Remove duplicate entries from the sample configuration files.

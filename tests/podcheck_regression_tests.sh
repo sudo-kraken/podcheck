@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.3.0"'
+printf '%s\n' 'VERSION="v1.3.1"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -35,6 +35,11 @@ cat > "${fake_bin}/regctl" <<'REGCTL'
 if [[ "${1:-}" == "version" ]]; then
   printf '%s\n' 'regctl fixture'
   exit 0
+fi
+
+if [[ -n "${REGCTL_ERROR:-}" ]]; then
+  printf '%s\n' "$REGCTL_ERROR" >&2
+  exit 1
 fi
 
 image="${@: -1}"
@@ -211,7 +216,7 @@ export FAKE_CONTAINERS="web db"
 export FAKE_PODS="web=matrix db=luanti"
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "v1.3.0 shows and groups pod names in container lists" ]]
+[[ "$header_changes" == "v1.3.1 preserves registry errors and hardens release handling" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
@@ -245,5 +250,12 @@ if [[ "$up_count" -ne 2 ]] || [[ "$svc_target_count" -ne 1 ]]; then
   printf '%s\n' 'Specific container selection leaked into the next compose update' >&2
   exit 1
 fi
+
+export FAKE_CONTAINERS="broken"
+export FAKE_PODS="broken=matrix"
+export REGCTL_ERROR="[MANIFEST_UNKNOWN] manifest unknown"
+
+bash "${repo_root}/podcheck.sh" -n > "${tmp_dir}/registry-error.log"
+grep -Fq 'matrix » broken - [MANIFEST_UNKNOWN] manifest unknown' "${tmp_dir}/registry-error.log"
 
 printf '%s\n' 'podcheck regression tests passed'

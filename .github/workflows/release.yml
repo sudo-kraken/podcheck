@@ -15,8 +15,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-tag:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check tag ancestry
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release tags must point to a commit on main."
+            exit 1
+          fi
+
   changelog:
     name: Generate changelog
+    needs: validate-tag
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -59,6 +79,7 @@ jobs:
 
   prepare-artifacts:
     name: Prepare release artifacts
+    needs: validate-tag
     runs-on: ubuntu-24.04
     permissions:
       contents: read
