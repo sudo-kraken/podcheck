@@ -151,6 +151,8 @@ SelectedUpdates=()
 ContainerNames=()
 ContainerPodNames=()
 CurlArgs="--retry ${CurlRetryCount:-3} --retry-delay ${CurlRetryDelay:-1} --connect-timeout ${CurlConnectTimeout:-5} -sf"
+ContainerInspectRetries=${ContainerInspectRetries:-10}
+ContainerInspectRetryDelay=${ContainerInspectRetryDelay:-1}
 regbin=""
 jqbin=""
 
@@ -291,6 +293,32 @@ container_display_name() {
   else
     printf "%s" "$container"
   fi
+}
+
+inspect_container() {
+  local container="$1"
+  local format="$2"
+  local retries="$ContainerInspectRetries"
+  local retry_delay="$ContainerInspectRetryDelay"
+  local attempt output
+
+  [[ "$retries" =~ ^[1-9][0-9]*$ ]] || retries=10
+  [[ "$retry_delay" =~ ^[0-9]+([.][0-9]+)?$ ]] || retry_delay=1
+
+  for ((attempt=1; attempt<=retries; attempt++)); do
+    if output=$(podman container inspect --format "$format" "$container" 2>&1); then
+      printf "%s\n" "$output"
+      return 0
+    fi
+
+    if (( attempt < retries )); then
+      sleep "$retry_delay"
+    fi
+  done
+
+  printf "Unable to inspect container %s after %s attempts: %s\n" \
+    "$container" "$retries" "$output" >&2
+  return 1
 }
 
 print_container_results() {
@@ -623,8 +651,8 @@ check_image() {
   # Filtering happens during update, not during check
 
   local NoUpdates GotUpdates GotErrors
-  ImageId=$(podman inspect "$i" --format='{{.Image}}')
-  RepoUrl=$(podman inspect "$i" --format='{{.Config.Image}}')
+  ImageId=$(inspect_container "$i" '{{.Image}}')
+  RepoUrl=$(inspect_container "$i" '{{.Config.Image}}')
   LocalHash=$(podman image inspect "$ImageId" --format '{{.RepoDigests}}')
 
   # Checking for errors while setting the variable
@@ -644,9 +672,9 @@ check_image() {
 }
 
 # Make required functions and variables available to subprocesses
-export -f check_image datecheck
+export -f check_image datecheck inspect_container
 export Excludes_string="${Excludes[*]:-}" # Can only export scalar variables
-export t_out regbin RepoUrl DaysOld DRunUp jqbin
+export t_out regbin RepoUrl DaysOld DRunUp jqbin ContainerInspectRetries ContainerInspectRetryDelay
 
 # Check for POSIX xargs with -P option, fallback without async
 if (echo "test" | xargs -P 2 >/dev/null 2>&1) && [[ "$MaxAsync" != 0 ]]; then
@@ -736,8 +764,8 @@ if [[ -n "${GotUpdates:-}" ]]; then
     for i in "${SelectedUpdates[@]}"; do
       ((CurrentQue+=1))
       printf "\n%bNow updating (%s/%s): %b%s%b\n" "$c_teal" "$CurrentQue" "$NumberofUpdates" "$c_blue" "$(container_display_name "$i")" "$c_reset"
-      ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
-      ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
+      ContLabels=$(inspect_container "$i" '{{json .Config.Labels}}')
+      ContImage=$(inspect_container "$i" '{{.Config.Image}}')
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
       [[ "$ContPath" == "null" ]] && ContPath=""
       ContUpdateLabel=$($jqbin -r '."sudo-kraken.podcheck.update"' <<< "$ContLabels")
@@ -746,11 +774,11 @@ if [[ -n "${GotUpdates:-}" ]]; then
       [[ "$OnlyLabel" == true ]] && { [[ "$ContUpdateLabel" != true ]] && { echo "No update label, skipping."; continue; } }
 
 # Check container state to prevent starting stopped containers (-s flag fix)
-      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null)
+      ContState=$(inspect_container "$i" '{{.State.Status}}' 2>/dev/null)
 
       # Create backup if BackupForDays is enabled
       if [[ -n "$BackupForDays" ]] && [[ "$BackupForDays" -gt 0 ]]; then
-        CurrentImgId=$(podman inspect "$i" --format='{{.Image}}' 2>/dev/null)
+        CurrentImgId=$(inspect_container "$i" '{{.Image}}' 2>/dev/null)
         if [[ -n "$CurrentImgId" ]]; then
           # Extract Repo and Tag from the Current Image URL safely
           ImgRepo=$(echo "$ContImage" | awk -F':' '{print $1}' | awk -F'/' '{print $NF}')
@@ -774,7 +802,7 @@ if [[ -n "${GotUpdates:-}" ]]; then
         fi
 
         # systemd detection: check for PODMAN_SYSTEMD_UNIT label first (Quadlet)
-        unit=$(podman inspect "$i" --format '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
+        unit=$(inspect_container "$i" '{{.Config.Labels.PODMAN_SYSTEMD_UNIT}}')
         # Go templates emit "<no value>" when a key is missing; treat that as empty
         [[ "$unit" == "<no value>" ]] && unit=""
         unit_kind=""
@@ -850,9 +878,9 @@ if [[ -n "${GotUpdates:-}" ]]; then
       SpecificContainer=()
 
       # Extract labels and metadata
-      ContLabels=$(podman inspect "$i" --format '{{json .Config.Labels}}')
-      ContImage=$(podman inspect "$i" --format='{{.Config.Image}}')
-      ContState=$(podman inspect "$i" --format '{{.State.Status}}' 2>/dev/null)
+      ContLabels=$(inspect_container "$i" '{{json .Config.Labels}}')
+      ContImage=$(inspect_container "$i" '{{.Config.Image}}')
+      ContState=$(inspect_container "$i" '{{.State.Status}}' 2>/dev/null)
       ContPath=$($jqbin -r '."com.docker.compose.project.working_dir"' <<< "$ContLabels")
       [[ "$ContPath" == "null" ]] && ContPath=""
       ContConfigFile=$($jqbin -r '."com.docker.compose.project.config_files"' <<< "$ContLabels")
