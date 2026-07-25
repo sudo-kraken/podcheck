@@ -680,11 +680,9 @@ done < <( \
 )
 
 # Group results by pod name, then container name
-IFS=$'\n'
-NoUpdates=($(sort_container_results "${NoUpdates[@]}"))
-GotUpdates=($(sort_container_results "${GotUpdates[@]}"))
-GotErrors=($(sort_container_results "${GotErrors[@]}"))
-unset IFS
+mapfile -t NoUpdates < <(sort_container_results "${NoUpdates[@]}")
+mapfile -t GotUpdates < <(sort_container_results "${GotUpdates[@]}")
+mapfile -t GotErrors < <(sort_container_results "${GotErrors[@]}")
 
 # Run the prometheus exporter function
 if [[ -n "${CollectorTextFileDirectory:-}" ]]; then
