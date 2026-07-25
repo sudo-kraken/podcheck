@@ -94,6 +94,9 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.3.2**: 🐛 **Bug Fixes**
+    - **Fixed**: Retry transient container inspections during Quadlet restarts and prevent image fallback.
+    - **Fixed**: Include the release signature bundle in automated release uploads.
 - **v1.3.1**: 🐛 **Bug Fixes**
     - **Fixed**: Preserve registry error messages containing shell pattern characters.
     - **Fixed**: Require release tags to come from merged `main` history.
