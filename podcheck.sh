@@ -3,8 +3,8 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.3.0"
-# ChangeNotes: v1.3.0 shows and groups pod names in container lists
+VERSION="v1.3.1"
+# ChangeNotes: v1.3.1 preserves registry errors and hardens release handling
 
 # Variables for self-updating
 ScriptArgs=( "$@" )

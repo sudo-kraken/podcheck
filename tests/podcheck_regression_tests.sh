@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.3.0"'
+printf '%s\n' 'VERSION="v1.3.1"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -216,7 +216,7 @@ export FAKE_CONTAINERS="web db"
 export FAKE_PODS="web=matrix db=luanti"
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "v1.3.0 shows and groups pod names in container lists" ]]
+[[ "$header_changes" == "v1.3.1 preserves registry errors and hardens release handling" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
