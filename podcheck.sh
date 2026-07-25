@@ -3,8 +3,8 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.3.1"
-# ChangeNotes: v1.3.1 preserves registry errors and hardens release handling
+VERSION="v1.3.2"
+# ChangeNotes: v1.3.2 retries container checks during Quadlet restarts
 
 # Variables for self-updating
 ScriptArgs=( "$@" )
