@@ -9,20 +9,26 @@ This workflow automatically creates GitHub releases when you push a version tag.
    VERSION="v0.8.0"
    ```
 
-2. **Commit your changes**:
+2. **Commit your changes and merge them into `main`**:
    ```bash
    git add podcheck.sh
    git commit -m "chore: bump version to v0.8.0"
    git push
    ```
 
-3. **Create and push a tag**:
+3. **Update your local `main` after the pull request is merged**:
+   ```bash
+   git switch main
+   git pull --ff-only
+   ```
+
+4. **Create and push the tag from `main`**:
    ```bash
    git tag v0.8.0
    git push origin v0.8.0
    ```
 
-4. **The workflow will automatically**:
+5. **The workflow will automatically**:
    - Generate a changelog using git-cliff
    - Create a draft release
    - Package the script and files into a tarball
