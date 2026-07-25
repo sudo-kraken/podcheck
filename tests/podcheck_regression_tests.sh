@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.3.1"'
+printf '%s\n' 'VERSION="v1.3.2"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -157,9 +157,27 @@ case "${1:-}" in
     done
     exit 0
     ;;
-  inspect)
-    container="$2"
+  container)
+    if [[ "${2:-}" != "inspect" ]]; then
+      printf 'unexpected podman container call: %s\n' "$*" >&2
+      exit 1
+    fi
+    container="${@: -1}"
     format="$(extract_format "${@:3}")"
+    if [[ "$container" == "${FAKE_TRANSIENT_INSPECT_CONTAINER:-}" ]] &&
+       [[ "$format" == *'.Config.Image'* ]]; then
+      inspect_count=0
+      if [[ -f "${FAKE_TRANSIENT_INSPECT_STATE:-}" ]]; then
+        inspect_count="$(cat "$FAKE_TRANSIENT_INSPECT_STATE")"
+      fi
+      ((inspect_count+=1))
+      printf '%s\n' "$inspect_count" > "$FAKE_TRANSIENT_INSPECT_STATE"
+      if [[ "$inspect_count" -eq "${FAKE_TRANSIENT_INSPECT_AT:-0}" ]]; then
+        log "container inspect transient failure $container"
+        printf 'no such container: %s\n' "$container" >&2
+        exit 1
+      fi
+    fi
     case "$format" in
       *'json .Config.Labels'*)
         if [[ "${FAKE_COMPOSE_LABELS:-false}" == true ]]; then
@@ -214,9 +232,10 @@ export PATH="${fake_bin}:${PATH}"
 export FAKE_PODMAN_LOG="$log_file"
 export FAKE_CONTAINERS="web db"
 export FAKE_PODS="web=matrix db=luanti"
+export ContainerInspectRetryDelay=0
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "v1.3.1 preserves registry errors and hardens release handling" ]]
+[[ "$header_changes" == "v1.3.2 retries container checks during Quadlet restarts" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
@@ -237,9 +256,13 @@ export FAKE_COMPOSE_LABELS=true
 export FAKE_CONTAINERS="svc-a svc-b"
 export FAKE_PODS="svc-a=matrix svc-b=luanti"
 export REGCTL_DIGEST="sha256:def"
+export FAKE_TRANSIENT_INSPECT_CONTAINER="svc-b"
+export FAKE_TRANSIENT_INSPECT_AT=2
+export FAKE_TRANSIENT_INSPECT_STATE="${tmp_dir}/inspect-count"
 
 : > "$log_file"
 bash "${repo_root}/podcheck.sh" -y svc-a,svc-b > "${tmp_dir}/update.log"
+grep -Fq 'container inspect transient failure svc-b' "$log_file"
 grep -Fq "[-f] [${project_dir}/compose.yml]" "$log_file"
 grep -Fq 'up] [-d] [--force-recreate] [svc-a]' "$log_file"
 grep -Fq 'luanti » svc-b' "${tmp_dir}/update.log"
@@ -254,6 +277,7 @@ fi
 export FAKE_CONTAINERS="broken"
 export FAKE_PODS="broken=matrix"
 export REGCTL_ERROR="[MANIFEST_UNKNOWN] manifest unknown"
+unset FAKE_TRANSIENT_INSPECT_CONTAINER FAKE_TRANSIENT_INSPECT_AT FAKE_TRANSIENT_INSPECT_STATE
 
 bash "${repo_root}/podcheck.sh" -n > "${tmp_dir}/registry-error.log"
 grep -Fq 'matrix » broken - [MANIFEST_UNKNOWN] manifest unknown' "${tmp_dir}/registry-error.log"
