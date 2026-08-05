@@ -36,7 +36,8 @@
       commitMessageExtra: "( {{currentDigestShort}} → {{newDigestShort}} )",
     },
     {
-      excludeManagers: ["github-actions"],
+      matchManagers: ["!github-actions"],
+      matchDatasources: ["!docker"],
       matchUpdateTypes: ["major"],
       semanticCommitType: "feat",
       semanticCommitScope: "deps",
@@ -45,7 +46,8 @@
       commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
     },
     {
-      excludeManagers: ["github-actions"],
+      matchManagers: ["!github-actions"],
+      matchDatasources: ["!docker"],
       matchUpdateTypes: ["minor"],
       semanticCommitType: "feat",
       semanticCommitScope: "deps",
@@ -53,7 +55,8 @@
       commitMessageExtra: "( {{currentVersion}} → {{newVersion}} )",
     },
     {
-      excludeManagers: ["github-actions"],
+      matchManagers: ["!github-actions"],
+      matchDatasources: ["!docker"],
       matchUpdateTypes: ["patch", "digest"],
       semanticCommitType: "fix",
       semanticCommitScope: "deps",
