@@ -3,8 +3,8 @@ set -euo pipefail
 shopt -s nullglob
 shopt -s failglob
 
-VERSION="v1.3.2"
-# ChangeNotes: v1.3.2 retries container checks during Quadlet restarts
+VERSION="v1.3.3"
+# ChangeNotes: v1.3.3 allows running without a config file
 
 # Variables for self-updating
 ScriptArgs=( "$@" )

@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-printf '%s\n' 'VERSION="v1.3.2"'
+printf '%s\n' 'VERSION="v1.3.3"'
 if [[ "$range_end" -ge 200 ]]; then
   printf '%s\n' '# ChangeNotes: regression test fixture'
 fi
@@ -241,7 +241,7 @@ HOME="${no_config_dir}/home" bash "${no_config_dir}/podcheck.sh" -n > "${tmp_dir
 grep -Fq 'Starting container update check' "${tmp_dir}/no-config.log"
 
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
-[[ "$header_changes" == "v1.3.2 retries container checks during Quadlet restarts" ]]
+[[ "$header_changes" == "v1.3.3 allows running without a config file" ]]
 
 latest_snippet="$(curl --retry 3 --retry-delay 1 --connect-timeout 5 -sf -r 0-1024 "fixture")"
 latest_changes="$(echo "${latest_snippet}" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
