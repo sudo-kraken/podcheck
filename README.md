@@ -18,10 +18,6 @@ _A CLI tool to automate Podman image updates or notify when updates are availabl
 
 - [Overview](#overview)
 - [Features](#features)
-- [Breaking changes in v0.7.1](#breaking-changes-in-v071)
-  - [What changed](#what-changed)
-  - [Migration steps from-v061](#migration-steps-from-v061)
-  - [New features](#new-features)
 - [Changelog](#changelog)
 - [`podcheck.sh` usage](#podchecksh)
   - [Basic example](#basic-example)
@@ -69,27 +65,6 @@ podcheck automates checking and updating Podman images and compose stacks, or no
 - Self-update capability and optional async processing
 - Rich notifications with multiple channels and snooze support
 - Image Backups for easy rollbacks if an update breaks a container
-
-___
-## BREAKING CHANGES IN v0.7.1
-
-**If upgrading from v0.6.1 or earlier, please read this carefully!**
-
-### What Changed
-- **Notification system completely rewritten** - old `notify.sh` files will NOT work
-- **Configuration file now required** for notifications - see `podcheck.config`
-- **New notification template architecture** - all templates updated
-
-### Migration Steps from v0.6.1
-1. **Backup your old setup**: `cp notify.sh notify.sh.backup` (if you have one)
-2. **Copy the new config**: `cp podcheck.config ~/.config/podcheck.config`
-3. **Configure notifications**: Edit `~/.config/podcheck.config` with your credentials
-4. **Enable channels**: Set `NOTIFY_CHANNELS="pushover telegram"` (or your preferred services)
-5. **Test notifications**: Run `./podcheck.sh -i` to test
-6. **Remove old files**: `rm notify.sh` (if you have one)
-
-### New Features
-All dockcheck v0.7.1 notification services are now supported with enhanced functionality.
 
 ___
 ## Changelog
