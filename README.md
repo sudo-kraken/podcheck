@@ -94,6 +94,8 @@ All dockcheck v0.7.1 notification services are now supported with enhanced funct
 ___
 ## Changelog
 
+- **v1.3.3**: 🐛 **Bug Fixes**
+    - **Fixed**: Allow podcheck to run with its built-in defaults when no optional config file exists.
 - **v1.3.2**: 🐛 **Bug Fixes**
     - **Fixed**: Retry transient container inspections during Quadlet restarts and prevent image fallback.
     - **Fixed**: Include the release signature bundle in automated release uploads.
