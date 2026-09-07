@@ -234,6 +234,12 @@ export FAKE_CONTAINERS="web db"
 export FAKE_PODS="web=matrix db=luanti"
 export ContainerInspectRetryDelay=0
 
+no_config_dir="${tmp_dir}/no-config"
+mkdir -p "${no_config_dir}/home"
+cp "${repo_root}/podcheck.sh" "${no_config_dir}/podcheck.sh"
+HOME="${no_config_dir}/home" bash "${no_config_dir}/podcheck.sh" -n > "${tmp_dir}/no-config.log"
+grep -Fq 'Starting container update check' "${tmp_dir}/no-config.log"
+
 header_changes="$(head -c 200 "${repo_root}/podcheck.sh" | sed -n "/ChangeNotes/s/# ChangeNotes: //p")"
 [[ "$header_changes" == "v1.3.2 retries container checks during Quadlet restarts" ]]
 

@@ -26,7 +26,8 @@ source_if_exists_or_fail() {
 }
 
 # User customizable defaults
-source_if_exists_or_fail "${HOME}/.config/podcheck.config" || source_if_exists_or_fail "${ScriptWorkDir}/podcheck.config"
+source_if_exists_or_fail "${HOME}/.config/podcheck.config" || \
+  source_if_exists_or_fail "${ScriptWorkDir}/podcheck.config" || true
 
 # Self-update functions (must be defined before use)
 self_update_curl() {
